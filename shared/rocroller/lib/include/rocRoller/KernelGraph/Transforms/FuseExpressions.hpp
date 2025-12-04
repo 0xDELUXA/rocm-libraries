@@ -17,13 +17,10 @@ namespace rocRoller
         {
         public:
             KernelGraph apply(KernelGraph const& original) override;
-
             std::string name() const override
             {
                 return "FuseExpressions";
             }
         };
-
-        std::vector<std::tuple<int, int>> findCandidates(KernelGraph const& kgraph);
     }
 }
