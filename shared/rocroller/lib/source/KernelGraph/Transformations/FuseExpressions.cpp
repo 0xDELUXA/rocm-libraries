@@ -1,24 +1,9 @@
 // Copyright Advanced Micro Devices, Inc., or its affiliates.
 // SPDX-License-Identifier: MIT
 
-#include "rocRoller/Expression_fwd.hpp"
-#include "rocRoller/KernelGraph/ControlGraph/ControlFlowRWTracer.hpp"
-#include "rocRoller/KernelGraph/CoordinateGraph/Transformer.hpp"
-#include <list>
-#include <memory>
-#include <optional>
-#include <tuple>
-#include <unordered_map>
-#include <unordered_set>
-#include <variant>
-
-#include <rocRoller/Expression.hpp>
-#include <rocRoller/KernelGraph/ControlToCoordinateMapper.hpp>
-#include <rocRoller/KernelGraph/KernelGraph.hpp>
 #include <rocRoller/KernelGraph/Transforms/FuseExpressions.hpp>
 #include <rocRoller/KernelGraph/Transforms/FuseExpressions_detail.hpp>
 #include <rocRoller/KernelGraph/Utils.hpp>
-#include <rocRoller/Utilities/Error.hpp>
 
 namespace rocRoller::KernelGraph
 {
