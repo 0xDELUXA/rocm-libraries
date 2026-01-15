@@ -19,7 +19,7 @@
  * - CleanLoops
  * - ConnectWorkgroups
  * - ConstantPropagation
- * - FuseExpressions
+ * - InlineExpressions
  * - FuseLoops
  * - InlineIncrements
  * - LoopOverTileNumbers

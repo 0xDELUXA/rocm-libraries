@@ -112,7 +112,7 @@ void applyGraphTransforms(rocRoller::KernelGraph::KernelGraph& kgraph,
     transforms.push_back(std::make_shared<LowerTile>(params, context));
     transforms.push_back(std::make_shared<LowerTensorContraction>(params, context));
     transforms.push_back(std::make_shared<Simplify>());
-    transforms.push_back(std::make_shared<FuseExpressions>());
+    transforms.push_back(std::make_shared<InlineExpressions>());
     transforms.push_back(std::make_shared<AddStreamK>(
         context, params, rocRoller::XLOOP, rocRoller::KLOOP, numWGsExpr));
     transforms.push_back(std::make_shared<ConnectWorkgroups>(context));
