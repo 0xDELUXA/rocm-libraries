@@ -373,15 +373,16 @@ namespace rocRoller
                 auto const rhsInfo  = DataTypeInfo::Get(rhs->variableType());
                 auto const destInfo = DataTypeInfo::Get(resType.varType);
 
-                // TODO: Should this be pushed to arithmetic generators?
                 // If any sources were AGPRs, copy to VGPRs first.
-                if(resType.valueCount > 1 && resType.regType == Register::Type::Accumulator)
+                if(lhs->regType() == Register::Type::Accumulator
+                   || rhs->regType() == Register::Type::Accumulator)
                 {
                     const auto& arch = m_context->targetArchitecture();
                     AssertFatal(arch.HasCapability(GPUCapability::HasAccCD),
                                 concatenate("Architecture",
                                             arch.target().toString(),
                                             "does not use Accumulator registers."));
+
                     resType.regType = Register::Type::Vector;
                     co_yield m_context->copier()->ensureType(lhs, lhs, resType.regType);
                     co_yield m_context->copier()->ensureType(rhs, rhs, resType.regType);
