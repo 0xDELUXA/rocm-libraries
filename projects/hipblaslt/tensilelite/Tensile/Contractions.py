@@ -581,6 +581,17 @@ class ProblemPredicate(Properties.Predicate):
         predicates = [p for p in map(cls.FromOriginalKeyPair, d.items()) if p is not None] + extraPreds
         return cls.And(predicates)
 
+class CustomKernel:
+    StateKeys = ['name', 'args']
+
+    @classmethod
+    def FromOriginalState(cls, d):
+        return cls(name=d['name'], args=d['args'])
+
+    def __init__(self, **kwargs):
+        for (key, value) in list(kwargs.items()):
+            setattr(self, key, value)
+
 class SizeMapping:
     StateKeys = ['waveNum',
                  'workGroup',
@@ -607,7 +618,7 @@ class SizeMapping:
                  'workspaceSizePerElemC',
                  'workspaceSizePerElemBias',
                  'activationFused',
-                 'CustomKernelName',
+                 'customKernel',
                  'workGroupMappingXCC',
                  'workGroupMappingXCCGroup',
                  'globalSplitUCoalesced',
@@ -670,6 +681,11 @@ class SizeMapping:
         dtlA = bool(d['DirectToLdsA'])
         dtlB = bool(d['DirectToLdsB'])
 
+        if 'CustomKernel' in d:
+            customKernel = CustomKernel.FromOriginalState(d['CustomKernel'])
+        else:
+            customKernel = CustomKernel(name="", args=[])
+
         return cls(waveNum                  = d['NumThreads'] // d['WavefrontSize'],
                    workGroup                = d['WorkGroup'],
                    macroTile                = cls.ReadOriginalMacroTile(d),
@@ -695,7 +711,7 @@ class SizeMapping:
                    workspaceSizePerElemC    = d['_WorkspaceSizePerElemC'],
                    workspaceSizePerElemBias = d['_WorkspaceSizePerElemBias'],
                    activationFused          = d['ActivationFused'],
-                   CustomKernelName         = d['CustomKernelName'],
+                   customKernel             = customKernel,
                    workGroupMappingXCC      = d['WorkGroupMappingXCC'],
                    workGroupMappingXCCGroup = d['WorkGroupMappingXCCGroup'],
                    globalSplitUCoalesced    = d['GlobalSplitUCoalesced'],

@@ -367,6 +367,21 @@ namespace TensileLite
         };
 
         template <typename IO>
+        struct EnumTraits<KernelArgumentType, IO>
+        {
+            using iot = IOTraits<IO>;
+
+            static void enumeration(IO& io, KernelArgumentType& value)
+            {
+                for(int i = 0; i < static_cast<int>(KernelArgumentType::Count); i++)
+                {
+                    auto const& info = static_cast<KernelArgumentType>(i);
+                    iot::enumCase(io, value, TensileLite::toString(info).c_str(), info);
+                }
+            }
+        };
+
+        template <typename IO>
         struct EnumTraits<ActivationType, IO>
         {
             using iot = IOTraits<IO>;

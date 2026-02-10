@@ -50,6 +50,33 @@
 
 namespace TensileLite
 {
+    enum KernelArgumentType
+    {
+        SizeFree0,  // 0
+        SizeFree1,  // 1
+        SizeFree2,  // 2
+        SizeSum,    // 3
+        AddressA,   // 4
+        AddressB,   // 5
+        AddressC,   // 6
+        AddressD,   // 7
+        StrideA0,   // 8
+        StrideA1,   // 9
+        StrideB0,   // 10
+        StrideB1,   // 11
+        StrideC0,   // 12
+        StrideC1,   // 13
+        StrideD0,   // 14
+        StrideD1,   // 15
+        Alpha,      // 16
+        Beta,       // 17
+        Count,      // 18
+    };
+    
+    std::string toString(KernelArgumentType arg);
+    std::ostream& operator<<(std::ostream& stream, const KernelArgumentType& t);
+    std::istream& operator>>(std::istream& stream, KernelArgumentType& t);
+
     template <typename TAct>
     struct DeviceUserArguments
     {
@@ -111,6 +138,12 @@ namespace TensileLite
         size_t depthUorMT1;
     };
 
+    struct CustomKernel
+    {
+        std::string name;
+        std::vector<int> args;
+    };
+
     struct SizeMapping
     {
         size_t waveNum;
@@ -149,7 +182,7 @@ namespace TensileLite
 
         bool activationFused = true;
 
-        std::string customKernelName;
+        CustomKernel customKernel;
 
         int  workGroupMappingXCC                    = 0;
         int  workGroupMappingXCCGroup               = 0;
@@ -449,6 +482,12 @@ namespace TensileLite
                                                       TensileLite::dim3&          numWorkItems,
                                                       KA&                         h_args,
                                                       uint32_t                    autoGsuVal) const;
+
+        template <bool T_Debug>
+        KernelInvocation generateCustomCall(Problem const&           problem,
+                                            ContractionInputs const& inputs,
+                                            Hardware const&          hardware,
+                                            StreamKSettings const&   sk) const;
 
         template <bool T_Debug>
         KernelInvocation generateSingleCall(Problem const&           problem,

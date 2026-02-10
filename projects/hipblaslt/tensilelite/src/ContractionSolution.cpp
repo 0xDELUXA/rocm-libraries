@@ -53,6 +53,143 @@
 
 namespace TensileLite
 {
+
+    std::string toString(KernelArgumentType arg)
+    {
+        switch(arg)
+        {
+        case KernelArgumentType::SizeFree0:
+            return "SizeFree0";
+        case KernelArgumentType::SizeFree1:
+            return "SizeFree1";
+        case KernelArgumentType::SizeFree2:
+            return "SizeFree2";
+        case KernelArgumentType::SizeSum:
+            return "SizeSum";
+        case KernelArgumentType::AddressA:
+            return "AddressA";
+        case KernelArgumentType::AddressB:
+            return "AddressB";
+        case KernelArgumentType::AddressC:
+            return "AddressC";
+        case KernelArgumentType::AddressD:
+            return "AddressD";
+        case KernelArgumentType::StrideA0:
+            return "StrideA0";
+        case KernelArgumentType::StrideA1:
+            return "StrideA1";
+        case KernelArgumentType::StrideB0:
+            return "StrideB0";
+        case KernelArgumentType::StrideB1:
+            return "StrideB1";
+        case KernelArgumentType::StrideC0:
+            return "StrideC0";
+        case KernelArgumentType::StrideC1:
+            return "StrideC1";
+        case KernelArgumentType::StrideD0:
+            return "StrideD0";
+        case KernelArgumentType::StrideD1:
+            return "StrideD1";
+        case KernelArgumentType::Alpha:
+            return "Alpha";
+        case KernelArgumentType::Beta:
+            return "Beta";
+        case KernelArgumentType::Count:
+            break;
+        }
+
+        throw std::runtime_error(
+            concatenate("Invalid KernelArgumentType value: ", static_cast<int>(arg)));
+    }
+
+    std::ostream& operator<<(std::ostream& stream, const KernelArgumentType& t)
+    {
+        return stream << toString(t);
+    }
+
+    std::istream& operator>>(std::istream& stream, KernelArgumentType& t)
+    {
+        std::string strValue;
+        stream >> strValue;
+        if(strValue == toString(KernelArgumentType::SizeFree0))
+        {
+            t = KernelArgumentType::SizeFree0;
+        }
+        else if(strValue == toString(KernelArgumentType::SizeFree1))
+        {
+            t = KernelArgumentType::SizeFree1;
+        }
+        else if(strValue == toString(KernelArgumentType::SizeFree2))
+        {
+            t = KernelArgumentType::SizeFree2;
+        }
+        else if(strValue == toString(KernelArgumentType::SizeSum))
+        {
+            t = KernelArgumentType::SizeSum;
+        }
+        else if(strValue == toString(KernelArgumentType::AddressA))
+        {
+            t = KernelArgumentType::AddressA;
+        }
+        else if(strValue == toString(KernelArgumentType::AddressB))
+        {
+            t = KernelArgumentType::AddressB;
+        }
+        else if(strValue == toString(KernelArgumentType::AddressC))
+        {
+            t = KernelArgumentType::AddressC;
+        }
+        else if(strValue == toString(KernelArgumentType::AddressD))
+        {
+            t = KernelArgumentType::AddressD;
+        }
+        else if(strValue == toString(KernelArgumentType::StrideA0))
+        {
+            t = KernelArgumentType::StrideA0;
+        }
+        else if(strValue == toString(KernelArgumentType::StrideA1))
+        {
+            t = KernelArgumentType::StrideA1;
+        }
+        else if(strValue == toString(KernelArgumentType::StrideB0))
+        {
+            t = KernelArgumentType::StrideB0;
+        }
+        else if(strValue == toString(KernelArgumentType::StrideB1))
+        {
+            t = KernelArgumentType::StrideB1;
+        }
+        else if(strValue == toString(KernelArgumentType::StrideC0))
+        {
+            t = KernelArgumentType::StrideC0;
+        }
+        else if(strValue == toString(KernelArgumentType::StrideC1))
+        {
+            t = KernelArgumentType::StrideC1;
+        }
+        else if(strValue == toString(KernelArgumentType::StrideD0))
+        {
+            t = KernelArgumentType::StrideD0;
+        }
+        else if(strValue == toString(KernelArgumentType::StrideD1))
+        {
+            t = KernelArgumentType::StrideD1;
+        }
+        else if(strValue == toString(KernelArgumentType::Alpha))
+        {
+            t = KernelArgumentType::Alpha;
+        }
+        else if(strValue == toString(KernelArgumentType::Beta))
+        {
+            t = KernelArgumentType::Beta;
+        }
+        else
+        {
+            throw std::runtime_error(concatenate("Invalid argument type: ", strValue));
+        }
+        return stream;
+    }
+
     enum class KERNELARGTYPE
     {
         NORMAL   = 0,
@@ -1382,6 +1519,104 @@ namespace TensileLite
 
         numWorkGroups.x = CeilDivide(numWorkGroups.x, sizeMapping.macroTile.x);
         numWorkGroups.y = CeilDivide(numWorkGroups.y, sizeMapping.macroTile.y);
+    }
+
+    template <bool T_Debug>
+    KernelInvocation ContractionSolution::generateCustomCall(ContractionSolution::Problem const& problem,
+                                                ContractionInputs const&            inputs,
+                                                Hardware const&                     hardware,
+                                                StreamKSettings const&              sk) const
+    {
+        KernelInvocation rv;
+        rv.isSingleCall = true;
+        rv.args = KernelArguments(T_Debug);
+        rv.args.reserve(1024, 128);
+        rv.kernelName = kernelName;
+        
+        calculateGrid(rv.workGroupSize, rv.numWorkGroups, problem);
+        rv.numWorkGroups.x *= (rv.numWorkGroups.y * rv.numWorkGroups.z);
+        rv.numWorkGroups.y = 1;
+        rv.numWorkGroups.z = 1;
+
+        rv.numWorkItems.x = rv.workGroupSize.x * rv.numWorkGroups.x;
+        rv.numWorkItems.y = rv.workGroupSize.y * rv.numWorkGroups.y;
+        rv.numWorkItems.z = rv.workGroupSize.z * rv.numWorkGroups.z;
+
+        // Temporarily set internal args manually
+        uint32_t gemmCount = 1;
+        gemmCount = gemmCount & 0x3FFFFFFF;
+        rv.args.template append<uint32_t>("gemm_count", gemmCount);
+        uint32_t internalArg0 = 1048577;
+        rv.args.template append<uint32_t>("internalArgs", internalArg0);
+        int32_t internalArg1 = 436731905;
+        rv.args.template append<int32_t>("internalArgs1", internalArg1);
+
+        uint32_t numWorkGroups = getNumWorkGroups(rv);
+        rv.args.template append<uint32_t>("numWorkGroups", numWorkGroups);
+
+        for(auto arg : sizeMapping.customKernel.args)
+        {
+            switch(arg)
+            {
+                case KernelArgumentType::SizeFree0:
+                    rv.args.template append<uint32_t>("SizeFree0", problem.problemSizes()[0]);
+                    break;
+                case KernelArgumentType::SizeFree1:
+                    rv.args.template append<uint32_t>("SizeFree1", problem.problemSizes()[1]);
+                    break;
+                case KernelArgumentType::SizeFree2:
+                    rv.args.template append<uint32_t>("SizeFree2", problem.problemSizes()[2]);
+                    break;
+                case KernelArgumentType::SizeSum:
+                    rv.args.template append<uint32_t>("SizeSum", problem.problemSizes()[3]);
+                    break;
+                case KernelArgumentType::AddressA:
+                    rv.args.template append<void const*>("AddressA", inputs.a);
+                    break;
+                case KernelArgumentType::AddressB:
+                    rv.args.template append<void const*>("AddressB", inputs.b);
+                    break;
+                case KernelArgumentType::AddressC:
+                    rv.args.template append<void const*>("AddressC", inputs.c);
+                    break;
+                case KernelArgumentType::AddressD:
+                    rv.args.template append<void const*>("AddressD", inputs.d);
+                    break;
+                case KernelArgumentType::StrideA0:
+                    rv.args.template append<uint32_t>("StrideA0", problem.a().strides()[1]);
+                    break;
+                case KernelArgumentType::StrideA1:
+                    rv.args.template append<uint32_t>("StrideA1", problem.a().strides()[2]);
+                    break;
+                case KernelArgumentType::StrideB0:
+                    rv.args.template append<uint32_t>("StrideB0", problem.b().strides()[1]);
+                    break;
+                case KernelArgumentType::StrideB1:
+                    rv.args.template append<uint32_t>("StrideB1", problem.b().strides()[2]);
+                    break;
+                case KernelArgumentType::StrideC0:
+                    rv.args.template append<uint32_t>("StrideC0", problem.c().strides()[1]);
+                    break;
+                case KernelArgumentType::StrideC1:
+                    rv.args.template append<uint32_t>("StrideC1", problem.c().strides()[2]);
+                    break;
+                case KernelArgumentType::StrideD0:
+                    rv.args.template append<uint32_t>("StrideD0", problem.d().strides()[1]);
+                    break;
+                case KernelArgumentType::StrideD1:
+                    rv.args.template append<uint32_t>("StrideD1", problem.d().strides()[2]);
+                    break;
+                case KernelArgumentType::Alpha:
+                    rv.args.append("Alpha", inputs.alpha, problem.alphaType());
+                    break;
+                case KernelArgumentType::Beta:
+                    rv.args.append("Beta", inputs.beta, problem.betaType());
+                    break;
+                default:
+                    throw std::runtime_error(concatenate("Invalid kernel argument type: ", arg));
+            }
+        }
+        return rv;
     }
 
     template <bool T_Debug>
@@ -2763,10 +2998,24 @@ namespace TensileLite
             }
         }
 
-        if(debug)
-            rv.push_back(generateSingleCall<true>(problem, inputs, hardware, sk));
+        if(sizeMapping.customKernel.name.empty())
+        {
+            // Regular generated kernel
+            if(debug)
+                rv.push_back(generateSingleCall<true>(problem, inputs, hardware, sk));
+            else
+                rv.push_back(generateSingleCall<false>(problem, inputs, hardware, sk));
+        }
         else
-            rv.push_back(generateSingleCall<false>(problem, inputs, hardware, sk));
+        {
+            // Custom kernel
+            if(debug)
+                rv.push_back(generateCustomCall<true>(problem, inputs, hardware, sk));
+            else
+                rv.push_back(generateCustomCall<false>(problem, inputs, hardware, sk));
+        }
+
+        
 
         if(((sizeMapping.globalAccumulation != 3) && gsu > 1 && sizeMapping.globalAccumulation)
            || sk.reduction == origami::reduction_t::parallel)
@@ -3286,7 +3535,7 @@ namespace TensileLite
         AMDGPU const* pAMDGPU = dynamic_cast<AMDGPU const*>(&hardware);
         assert(pAMDGPU != nullptr && pAMDGPU->computeUnitCount != 0);
 
-        if(!sizeMapping.customKernelName.empty())
+        if(!sizeMapping.customKernel.name.empty())
         {
             // Custom kernel currently only supports single-kernel reduction
             reductionStrat = origami::reduction_t::tree;

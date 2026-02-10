@@ -95,8 +95,8 @@ def getParameterValueAbbreviation(key, value):
 
 def _getName(state, requiredParameters: frozenset, splitGSU: bool, ignoreInternalArgs):
 
-  if "CustomKernelName" in state and state["CustomKernelName"]:
-    return state["CustomKernelName"]
+  if "CustomKernel" in state and state["CustomKernel"]["name"]:
+    return state["CustomKernel"]["name"]
 
   gsuBackup = state["GlobalSplitU"]
   ggBackup = state["ProblemType"]["GroupedGemm"]
@@ -145,7 +145,7 @@ def _getName(state, requiredParameters: frozenset, splitGSU: bool, ignoreInterna
     # Skip SFA tag if using default wgm algo
     if key == "SpaceFillingAlgo" and len(state[key]) == 0:
       continue
-    if key[0] != '_' and key != "CustomKernelName" and key in requiredParametersTemp:
+    if key[0] != '_' and key != "CustomKernel" and key in requiredParametersTemp:
         components.append(f'{getParameterNameAbbreviation(key)}{getParameterValueAbbreviation(key, state[key])}')
 
   state["GlobalSplitU"] = gsuBackup

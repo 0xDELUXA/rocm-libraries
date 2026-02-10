@@ -345,11 +345,11 @@ def parseLibraryLogicData(
         # force redo the deriving of parameters, make sure old version logic yamls can be validated
         solutionState["AssignedProblemIndependentDerivedParameters"] = False
         solutionState["AssignedDerivedParameters"] = False
-        if solutionState["CustomKernelName"]:
+        if "CustomKernel" in solutionState and solutionState["CustomKernel"]["name"]:
             isp = {}
             if "InternalSupportParams" in solutionState:
                 isp = solutionState["InternalSupportParams"]
-            customConfig = getCustomKernelConfig(solutionState["CustomKernelName"], isp)
+            customConfig = getCustomKernelConfig(solutionState["CustomKernel"]["name"], isp)
             for key, value in customConfig.items():
                 solutionState[key] = value
 

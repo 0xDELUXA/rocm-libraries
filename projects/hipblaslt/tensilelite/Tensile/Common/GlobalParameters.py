@@ -426,6 +426,7 @@ defaultBenchmarkCommonParameters = [
     {"NonTemporal": [-1]},
     {"PreloadKernArgs": [True]},
     {"CustomKernelName": [""]},
+    {"CustomKernel": [{"name": "", "args": []}]},
     {"NoReject": [False]},
     {"StoreRemapVectorWidth": [0]},
     {"SourceSwap": [False]},
