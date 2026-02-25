@@ -18,4 +18,4 @@ Tensile/bin/TensileLogic --check-only-custom-kernels <path to logic file>
 ```
 
 where `<path to logic file>` is a path to a logic file containing a solution where
-`CustomKernelName` references the custom kernel requiring validation.
+`CustomKernel` references the custom kernel requiring validation.

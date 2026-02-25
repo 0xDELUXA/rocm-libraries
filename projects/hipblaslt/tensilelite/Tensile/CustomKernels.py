@@ -30,7 +30,7 @@ import yaml
 import os
 
 def isCustomKernelConfig(config):
-    return "CustomKernelName" in config and config["CustomKernelName"]
+    return "CustomKernel" in config and config["CustomKernel"]["name"]
 
 def getCustomKernelFilepath(name, directory=CUSTOM_KERNEL_PATH):
     return os.path.join(directory, (name + ".s"))
@@ -101,6 +101,6 @@ def getCustomKernelConfig(
             checkParametersAreValid((k, [v]), validParameters)
 
     kernelConfig["KernelLanguage"] = "Assembly"
-    kernelConfig["CustomKernelName"] = kernelName
+    kernelConfig["CustomKernel"]["name"] = kernelName
 
     return kernelConfig

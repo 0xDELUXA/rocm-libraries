@@ -49,7 +49,7 @@ def handleCustomKernel(sol: dict, isaInfoMap: Dict[IsaVersion, IsaInfo]) -> Tupl
     if not isCustomKernelConfig(sol):
         return sol, False
 
-    name = sol["CustomKernelName"]
+    name = sol["CustomKernel"]["name"]
     dir = CUSTOM_KERNEL_PATH
     config = getCustomKernelConfig(name, {}, dir)
     sol.update(config)
@@ -89,7 +89,7 @@ def hasCustomKernel(file: Path) -> bool:
     with open(file, "r") as f:
         for line in f:
             l = line.strip()
-            if l.startswith("CustomKernelName:") and not l.endswith("''"):
+            if l.startswith("name:") and not l.endswith("''"):
                 return True
     return False
 

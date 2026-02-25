@@ -367,7 +367,7 @@ class Solution(collections.abc.Mapping):
       isaInfoMap,
       assembler.rocm_version
     )
-    self._name = config["CustomKernelName"] if "CustomKernelName" in config and config["CustomKernelName"] else None
+    self._name = config["CustomKernel"]["name"] if "CustomKernel" in config and config["CustomKernel"]["name"] else None
 
   # these keys are copied from ProblemType to internal that may be overridden
   InternalKeys = ["UseSgprForGRO","VectorStore"]
@@ -3118,7 +3118,7 @@ class Solution(collections.abc.Mapping):
           else:
             reject(state, printRejectionReason, "%s's padded address is inconisstent"%tc)
 
-    if(not (state["CustomKernelName"] and state["CustomKernelName"] != "")): #don't check the custom kernel.
+    if(not ("CustomKernel" in state and state["CustomKernel"]["name"] != "")): #don't check the custom kernel.
       checkLdsBlockSizePerPad("A")
       checkLdsBlockSizePerPad("B")
 

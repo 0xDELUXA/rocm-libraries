@@ -94,6 +94,8 @@ namespace TensileLite
             return "Alpha";
         case KernelArgumentType::Beta:
             return "Beta";
+        case KernelArgumentType::DebugPattern:
+            return "DebugPattern";
         case KernelArgumentType::Count:
             break;
         }
@@ -182,6 +184,10 @@ namespace TensileLite
         else if(strValue == toString(KernelArgumentType::Beta))
         {
             t = KernelArgumentType::Beta;
+        }
+        else if(strValue == toString(KernelArgumentType::DebugPattern))
+        {
+            t = KernelArgumentType::DebugPattern;
         }
         else
         {
@@ -901,7 +907,7 @@ namespace TensileLite
                     // then no Stream-K tiles are needed, all data-parallel
                     uint32_t skTiles = sk.grid;
                     // If not evenly divisible, determine number of Stream-K tiles
-                    if(tiles % sk.grid != 0)
+                    if(tiles % sk.grid != 0) 
                     {
                         // Number of data-parallel tiles on each workgroup would be:
                         // dpTilesPerWG = bigEnough ? (tiles - skTiles) / skGrid : 0;
@@ -1543,16 +1549,18 @@ namespace TensileLite
         rv.numWorkItems.z = rv.workGroupSize.z * rv.numWorkGroups.z;
 
         // Temporarily set internal args manually
-        uint32_t gemmCount = 1;
-        gemmCount = gemmCount & 0x3FFFFFFF;
-        rv.args.template append<uint32_t>("gemm_count", gemmCount);
-        uint32_t internalArg0 = 1048577;
-        rv.args.template append<uint32_t>("internalArgs", internalArg0);
-        int32_t internalArg1 = 436731905;
-        rv.args.template append<int32_t>("internalArgs1", internalArg1);
+        // uint32_t gemmCount = 1;
+        // gemmCount = gemmCount & 0x3FFFFFFF;
+        // rv.args.template append<uint32_t>("gemm_count", gemmCount);
+        // uint32_t internalArg0 = 1048577;
+        // rv.args.template append<uint32_t>("internalArgs", internalArg0);
+        // int32_t internalArg1 = 436731905;
+        // rv.args.template append<int32_t>("internalArgs1", internalArg1);
 
-        uint32_t numWorkGroups = getNumWorkGroups(rv);
-        rv.args.template append<uint32_t>("numWorkGroups", numWorkGroups);
+        // uint32_t numWorkGroups = getNumWorkGroups(rv);
+        // rv.args.template append<uint32_t>("numWorkGroups", numWorkGroups);
+
+        uint32_t debugPattern = 0xDB000001;
 
         for(auto arg : sizeMapping.customKernel.args)
         {
@@ -1611,6 +1619,10 @@ namespace TensileLite
                     break;
                 case KernelArgumentType::Beta:
                     rv.args.append("Beta", inputs.beta, problem.betaType());
+                    break;
+                case KernelArgumentType::DebugPattern:
+                    rv.args.template append<uint32_t>("DebugPattern", debugPattern);
+                    ++debugPattern;
                     break;
                 default:
                     throw std::runtime_error(concatenate("Invalid kernel argument type: ", arg));

@@ -70,7 +70,8 @@ namespace TensileLite
         StrideD1,   // 15
         Alpha,      // 16
         Beta,       // 17
-        Count,      // 18
+        DebugPattern,      // 18
+        Count,      // 19
     };
     
     std::string toString(KernelArgumentType arg);
