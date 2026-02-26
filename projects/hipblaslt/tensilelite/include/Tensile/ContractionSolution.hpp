@@ -71,7 +71,11 @@ namespace TensileLite
         Alpha,      // 16
         Beta,       // 17
         DebugPattern,      // 18
-        Count,      // 19
+        ExtentA,    // 19
+        ExtentB,    // 20
+        ExtentC,    // 21
+        ExtentD,    // 22
+        Count,      // 23
     };
     
     std::string toString(KernelArgumentType arg);

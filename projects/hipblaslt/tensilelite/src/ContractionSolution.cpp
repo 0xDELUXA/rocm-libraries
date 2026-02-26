@@ -96,6 +96,14 @@ namespace TensileLite
             return "Beta";
         case KernelArgumentType::DebugPattern:
             return "DebugPattern";
+        case KernelArgumentType::ExtentA:
+            return "ExtentA";
+        case KernelArgumentType::ExtentB:
+            return "ExtentB";
+        case KernelArgumentType::ExtentC:
+            return "ExtentC";
+        case KernelArgumentType::ExtentD:
+            return "ExtentD";
         case KernelArgumentType::Count:
             break;
         }
@@ -189,6 +197,22 @@ namespace TensileLite
         {
             t = KernelArgumentType::DebugPattern;
         }
+        else if(strValue == toString(KernelArgumentType::ExtentA))
+        {
+            t = KernelArgumentType::ExtentA;
+        }
+        else if(strValue == toString(KernelArgumentType::ExtentB))
+        {
+            t = KernelArgumentType::ExtentB;
+        }
+        else if(strValue == toString(KernelArgumentType::ExtentC))
+        {
+            t = KernelArgumentType::ExtentC;
+        }
+        else if(strValue == toString(KernelArgumentType::ExtentD))
+        {
+            t = KernelArgumentType::ExtentD;
+        }        
         else
         {
             throw std::runtime_error(concatenate("Invalid argument type: ", strValue));
@@ -1632,6 +1656,121 @@ namespace TensileLite
     }
 
     template <bool T_Debug>
+    KernelInvocation ContractionSolution::generateRocRollerCall(ContractionSolution::Problem const& problem,
+                                                ContractionInputs const&            inputs,
+                                                Hardware const&                     hardware,
+                                                StreamKSettings const&              sk) const
+    {
+        KernelInvocation rv;
+        rv.isSingleCall = true;
+        rv.args = KernelArguments(T_Debug);
+        rv.args.reserve(1024, 128);
+        rv.kernelName = kernelName;
+        
+        calculateGrid(rv.workGroupSize, rv.numWorkGroups, problem);
+        rv.numWorkGroups.x *= (rv.numWorkGroups.y * rv.numWorkGroups.z);
+        rv.numWorkGroups.y = 1;
+        rv.numWorkGroups.z = 1;
+
+        rv.numWorkItems.x = rv.workGroupSize.x * rv.numWorkGroups.x;
+        rv.numWorkItems.y = rv.workGroupSize.y * rv.numWorkGroups.y;
+        rv.numWorkItems.z = rv.workGroupSize.z * rv.numWorkGroups.z;
+
+        // Temporarily set internal args manually
+        // uint32_t gemmCount = 1;
+        // gemmCount = gemmCount & 0x3FFFFFFF;
+        // rv.args.template append<uint32_t>("gemm_count", gemmCount);
+        // uint32_t internalArg0 = 1048577;
+        // rv.args.template append<uint32_t>("internalArgs", internalArg0);
+        // int32_t internalArg1 = 436731905;
+        // rv.args.template append<int32_t>("internalArgs1", internalArg1);
+
+        // uint32_t numWorkGroups = getNumWorkGroups(rv);
+        // rv.args.template append<uint32_t>("numWorkGroups", numWorkGroups);
+
+        // uint32_t debugPattern = 0xDB000001;
+
+        for(auto arg : sizeMapping.customKernel.args)
+        {
+            switch(arg)
+            {
+                case KernelArgumentType::SizeFree0:
+                    rv.args.template append<int64_t>("SizeFree0", problem.problemSizes()[0]);
+                    break;
+                case KernelArgumentType::SizeFree1:
+                    rv.args.template append<int64_t>("SizeFree1", problem.problemSizes()[1]);
+                    break;
+                case KernelArgumentType::SizeFree2:
+                    rv.args.template append<int64_t>("SizeFree2", problem.problemSizes()[2]);
+                    break;
+                case KernelArgumentType::SizeSum:
+                    rv.args.template append<int64_t>("SizeSum", problem.problemSizes()[3]);
+                    break;
+                case KernelArgumentType::AddressA:
+                    rv.args.template append<void const*>("AddressA", inputs.a);
+                    break;
+                case KernelArgumentType::AddressB:
+                    rv.args.template append<void const*>("AddressB", inputs.b);
+                    break;
+                case KernelArgumentType::AddressC:
+                    rv.args.template append<void const*>("AddressC", inputs.c);
+                    break;
+                case KernelArgumentType::AddressD:
+                    rv.args.template append<void const*>("AddressD", inputs.d);
+                    break;
+                case KernelArgumentType::StrideA0:
+                    rv.args.template append<int64_t>("StrideA0", problem.a().strides()[1]);
+                    break;
+                case KernelArgumentType::StrideA1:
+                    rv.args.template append<int64_t>("StrideA1", problem.a().strides()[2]);
+                    break;
+                case KernelArgumentType::StrideB0:
+                    rv.args.template append<int64_t>("StrideB0", problem.b().strides()[1]);
+                    break;
+                case KernelArgumentType::StrideB1:
+                    rv.args.template append<int64_t>("StrideB1", problem.b().strides()[2]);
+                    break;
+                case KernelArgumentType::StrideC0:
+                    rv.args.template append<int64_t>("StrideC0", problem.c().strides()[1]);
+                    break;
+                case KernelArgumentType::StrideC1:
+                    rv.args.template append<int64_t>("StrideC1", problem.c().strides()[2]);
+                    break;
+                case KernelArgumentType::StrideD0:
+                    rv.args.template append<int64_t>("StrideD0", problem.d().strides()[1]);
+                    break;
+                case KernelArgumentType::StrideD1:
+                    rv.args.template append<int64_t>("StrideD1", problem.d().strides()[2]);
+                    break;
+                case KernelArgumentType::Alpha:
+                    rv.args.append("Alpha", inputs.alpha, problem.alphaType());
+                    break;
+                case KernelArgumentType::Beta:
+                    rv.args.append("Beta", inputs.beta, problem.betaType());
+                    break;
+                case KernelArgumentType::ExtentA:
+                    rv.args.template append<int64_t>("ExtentA", problem.problemSizes()[0] * problem.problemSizes()[3]);
+                    break;
+                case KernelArgumentType::ExtentB:
+                    rv.args.template append<int64_t>("ExtentB", problem.problemSizes()[1] * problem.problemSizes()[3]);
+                    break;
+                case KernelArgumentType::ExtentC:
+                    rv.args.template append<int64_t>("ExtentC", problem.problemSizes()[0] * problem.problemSizes()[1]);
+                    break;
+                case KernelArgumentType::ExtentD:
+                    rv.args.template append<int64_t>("ExtentD", problem.problemSizes()[1] * problem.problemSizes()[1]);
+                    break;
+                case KernelArgumentType::DebugPattern:
+                    // N/A
+                    break;
+                default:
+                    throw std::runtime_error(concatenate("Invalid kernel argument type: ", arg));
+            }
+        }
+        return rv;
+    }
+
+    template <bool T_Debug>
     KernelInvocation
         ContractionSolution::generateSingleCall(ContractionSolution::Problem const& problem,
                                                 ContractionInputs const&            inputs,
@@ -3018,6 +3157,14 @@ namespace TensileLite
             else
                 rv.push_back(generateSingleCall<false>(problem, inputs, hardware, sk));
         }
+        else if(sizeMapping.customKernel.name.contains("RRGEMM_"))
+        {
+            // RocRoller kernel
+            if(debug)
+                rv.push_back(generateRocRollerCall<true>(problem, inputs, hardware, sk));
+            else
+                rv.push_back(generateRocRollerCall<false>(problem, inputs, hardware, sk));
+        } 
         else
         {
             // Custom kernel

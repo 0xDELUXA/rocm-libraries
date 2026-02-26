@@ -1,0 +1,97 @@
+TestParameters:
+  marks: [skip-gfx1100, skip-gfx1101, skip-gfx1102, skip-gfx1200, skip-gfx1201] # not supported yet
+
+GlobalParameters:
+  MinimumRequiredVersion: 5.0.0
+  SleepPercent: 50
+  NumElementsToValidate: -1
+  DataInitTypeBeta: 0
+  DataInitTypeAlpha: 1
+  DataInitTypeA: 3
+  DataInitTypeB: 3
+  NewClient: 2
+  CSVExportWinner: 1
+  CSVMergeSameProblemID: 1
+  Device: 0
+  PrintSolutionRejectionReason: True
+  
+  # PrintTensorA: 1
+  # PrintTensorB: 1
+  # PrintTensorD: 2
+  # PrintTensorRef: 2
+
+BenchmarkProblems:
+  -
+    - # ProblemType
+      OperationType: GEMM
+      DataType: h
+      DestDataType: h
+      ComputeDataType: s
+      HighPrecisionAccumulate: True
+      TransposeA: 1
+      TransposeB: 0
+      UseBeta: True
+      Batched: True
+      UseBias: 0
+      Activation: False
+      UseScaleAlphaVec: 0
+
+    - # BenchmarkProblemSizeGroup - Standard - All problem
+      InitialSolutionParameters:
+      BenchmarkCommonParameters:
+        - KernelLanguage: ["Assembly"]
+      ForkParameters:
+        - CustomKernel:
+          - name: "RRGEMM_TN_half_half_half_half_float_WGTS64x64x64_WGS128x2_WGMXCC0_LABufferToLDS_LBBufferToLDS_SDVGPRToGlobalMemoryWithBuffer_LSABufferToVGPR_LSBBufferToVGPR_SwizzleScale00_SwizzleTileSize_8fd6cc113dd5231a_gfx942"
+            args: [AddressA, Extent0, SizeFree3, SizeFree0, StrideA0, StrideA1, AddressB, ExtentB, SizeFree3, SizeFree1, StrideB0, StrideB1, AddressC, ExtentC, SizeFree0, SizeFree1, StrideC0, StrideC1, AddressD, ExtentD, SizeFree0, SizeFree1, StrideD0, StrideD1]
+        - MatrixInstruction:
+          - [16,16,16, 1, 1, 8,8, 2,2] # 256 x 128
+        - PreloadKernArgs: [False]
+        # - PrefetchGlobalRead: [2]
+        # - PrefetchLocalRead: [1]
+        - DepthU: [64]
+        - VectorWidthA: [-1]
+        - VectorWidthB: [-1]
+        - GlobalReadVectorWidthA: [-1]
+        - GlobalReadVectorWidthB: [-1]
+        - LocalReadVectorWidth: [-1]
+        - TransposeLDS: [-1]
+        - LdsBlockSizePerPadA: [-1]
+        - LdsBlockSizePerPadB: [-1]
+        - LdsPadA: [-1]
+        - LdsPadB: [-1]
+        - StaggerU: [16]
+        - StaggerUStride: [-1]
+        - WorkGroupMapping: [1]
+        - StaggerUMapping: [0]
+        - 1LDSBuffer: [-1]
+        - WorkGroupMappingXCC: [8]
+        - WorkGroupMappingXCCGroup: [-1]
+        - GlobalSplitU: [1]
+        - GlobalSplitUAlgorithm: ["MultipleBuffer"]
+        - GlobalReadPerMfma: [1]
+        - LocalWritePerMfma: [-1]
+        - StoreRemapVectorWidth: [0]
+        - StoreVectorWidth: [-1]
+        - SourceSwap: [1]
+        - NumElementsPerBatchStore: [16]
+        - ClusterLocalRead: [1]
+        - NonTemporalA: [0]
+        - NonTemporalB: [0]
+        - DirectToVgprA: [1]
+        - DirectToVgprB: [0]
+        # - WorkGroup: [[32,4,4]]
+
+      BenchmarkJoinParameters:
+      BenchmarkFinalParameters:
+        - ProblemSizes:
+          # - Exact: [3328, 4096, 1, 4096, 4096, 4096, 4096, 4096]
+          # - Exact: [256, 256, 1, 256]
+          - Exact: [2048, 4096, 1, 1024]
+          # - Exact: [3328, 4096, 1, 4096]
+
+LibraryLogic:
+    ScheduleName: "aquavanjaram"
+    DeviceNames: ["Device 0049", "Device 0050"]
+    ArchitectureName: "gfx942"
+    LibraryType: "GridBased"
