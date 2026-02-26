@@ -34,6 +34,7 @@
 #include <vector>
 
 #include <Tensile/Activation.hpp>
+#include <Tensile/ContractionSolution.hpp>
 #include <Tensile/DataTypes.hpp>
 #include <Tensile/KernelLanguageTypes.hpp>
 #include <Tensile/ScalarValueTypes.hpp>

@@ -3157,7 +3157,7 @@ namespace TensileLite
             else
                 rv.push_back(generateSingleCall<false>(problem, inputs, hardware, sk));
         }
-        else if(sizeMapping.customKernel.name.contains("RRGEMM_"))
+        else if(sizeMapping.customKernel.name.find("RRGEMM_") != std::string::npos)
         {
             // RocRoller kernel
             if(debug)

@@ -495,6 +495,12 @@ namespace TensileLite
                                             StreamKSettings const&   sk) const;
 
         template <bool T_Debug>
+        KernelInvocation generateRocRollerCall(ContractionSolution::Problem const& problem,
+                                                ContractionInputs const&            inputs,
+                                                Hardware const&                     hardware,
+                                                StreamKSettings const&              sk) const;
+
+        template <bool T_Debug>
         KernelInvocation generateSingleCall(Problem const&           problem,
                                             ContractionInputs const& inputs,
                                             Hardware const&          hardware,
