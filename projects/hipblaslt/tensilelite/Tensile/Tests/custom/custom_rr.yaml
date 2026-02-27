@@ -42,8 +42,8 @@ BenchmarkProblems:
         - KernelLanguage: ["Assembly"]
       ForkParameters:
         - CustomKernel:
-          - name: "RRGEMM_TN_half_half_half_half_float_WGTS64x64x64_WGS128x2_WGMXCC0_LABufferToLDS_LBBufferToLDS_SDVGPRToGlobalMemoryWithBuffer_LSABufferToVGPR_LSBBufferToVGPR_SwizzleScale00_SwizzleTileSize_8fd6cc113dd5231a"
-            args: [AddressA, ExtentA, SizeA0, SizeA1, StrideA0, StrideA1, AddressB, ExtentB, SizeB0, SizeB1, StrideB0, StrideB1, AddressC, ExtentC, SizeC0, SizeC1, StrideC0, StrideC1, AddressD, ExtentD, SizeD0, SizeD1, StrideD0, StrideD1]
+          - name: "RRGEMM_TN_half_half_half_half_float_WGTS64x64x64_WGS128x2_WGMXCC0_LABufferToLDS_LBBufferToLDS_SD1_LSABufferToVGPR_LSBBufferToVGPR_UNROLL0x0_SwizzleScale00_SwizzleTileSize0x0X0x0_PF4x1m1_M_98fd6c3c16c08d0e"
+            args: [ExtentA, AddressA, ExtentB, AddressB, ExtentC, AddressC, Alpha, Beta, StrideA1, SizeA0, StrideB1, StrideC1, StrideD1, ExtentD, AddressD]
         - MatrixInstruction:
           - [16,16,16, 1, 1, 8,8, 2,2] # 256 x 128
         - PreloadKernArgs: [False]

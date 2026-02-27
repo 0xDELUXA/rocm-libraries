@@ -1716,13 +1716,15 @@ namespace TensileLite
         rv.kernelName = kernelName;
         
         calculateGrid(rv.workGroupSize, rv.numWorkGroups, problem);
-        rv.numWorkGroups.x *= (rv.numWorkGroups.y * rv.numWorkGroups.z);
+        rv.numWorkGroups.x = 256;
         rv.numWorkGroups.y = 1;
         rv.numWorkGroups.z = 1;
 
-        rv.numWorkItems.x = rv.workGroupSize.x * rv.numWorkGroups.x;
-        rv.numWorkItems.y = rv.workGroupSize.y * rv.numWorkGroups.y;
-        rv.numWorkItems.z = rv.workGroupSize.z * rv.numWorkGroups.z;
+        rv.numWorkItems.x = 8192;
+        rv.numWorkItems.y = 64;
+        rv.numWorkItems.z = 1;
+
+	std::cout << "Workgroups: " << rv.numWorkGroups.x << "\nWorkItems: " <<  rv.numWorkItems.x << " " << rv.numWorkItems.y << " " <<  rv.numWorkItems.z << std::endl; 
 
         // Temporarily set internal args manually
         // uint32_t gemmCount = 1;
@@ -1740,84 +1742,111 @@ namespace TensileLite
 
         for(auto arg : sizeMapping.customKernel.args)
         {
+	        std::cout << "RR_ARG: " << toString(arg) << std::endl;
             switch(arg)
             {
                 case KernelArgumentType::SizeA0:
+			        std::cout << "SizeA0" << problem.a().sizes()[0] << std::endl;
                     rv.args.template append<int64_t>("SizeA0", problem.a().sizes()[0]);
                     break;
                 case KernelArgumentType::SizeA1:
+		            std::cout << "SizeA1" << problem.a().sizes()[1] << std::endl;
                     rv.args.template append<int64_t>("SizeA1", problem.a().sizes()[1]);
                     break;
                 case KernelArgumentType::SizeB0:
+		            std::cout << "SizeB0" << problem.b().sizes()[0] << std::endl;
                     rv.args.template append<int64_t>("SizeB0", problem.b().sizes()[0]);
                     break;
                 case KernelArgumentType::SizeB1:
+		            std::cout << "SizeB1" << problem.b().sizes()[1] << std::endl;
                     rv.args.template append<int64_t>("SizeB1", problem.b().sizes()[1]);
                     break;
                 case KernelArgumentType::SizeC0:
+		            std::cout << "SizeC0" << problem.c().sizes()[0] << std::endl;
                     rv.args.template append<int64_t>("SizeC0", problem.c().sizes()[0]);
                     break;
                 case KernelArgumentType::SizeC1:
+		            std::cout << "SizeC1" << problem.c().sizes()[1] << std::endl;
                     rv.args.template append<int64_t>("SizeC1", problem.c().sizes()[1]);
                     break;
                 case KernelArgumentType::SizeD0:
+		            std::cout << "SizeD0" << problem.d().sizes()[0] << std::endl;
                     rv.args.template append<int64_t>("SizeD0", problem.d().sizes()[0]);
                     break;
                 case KernelArgumentType::SizeD1:
+		            std::cout << "SizeD1" << problem.d().sizes()[1] << std::endl;
                     rv.args.template append<int64_t>("SizeD1", problem.d().sizes()[1]);
                     break;
                 case KernelArgumentType::AddressA:
+		            if(nullptr == inputs.a) std::cout << "AddressA: NULL" << std::endl;
                     rv.args.template append<void const*>("AddressA", inputs.a);
                     break;
                 case KernelArgumentType::AddressB:
+		            if(nullptr == inputs.b) std::cout << "AddressB: NULL" << std::endl;
                     rv.args.template append<void const*>("AddressB", inputs.b);
                     break;
                 case KernelArgumentType::AddressC:
+		            if(nullptr == inputs.c) std::cout << "AddressC: NULL" << std::endl;
                     rv.args.template append<void const*>("AddressC", inputs.c);
                     break;
                 case KernelArgumentType::AddressD:
+		            if(nullptr == inputs.d) std::cout << "AddressD: NULL" << std::endl;
                     rv.args.template append<void const*>("AddressD", inputs.d);
                     break;
                 case KernelArgumentType::StrideA0:
+		            std::cout << "StrideA0" << problem.a().sizes()[0] << std::endl;
                     rv.args.template append<int64_t>("StrideA0", problem.a().strides()[0]);
                     break;
                 case KernelArgumentType::StrideA1:
+		            std::cout << "StrideA1" << problem.a().sizes()[0] << std::endl;
                     rv.args.template append<int64_t>("StrideA1", problem.a().strides()[1]);
                     break;
                 case KernelArgumentType::StrideB0:
+		            std::cout << "StrideB0" << problem.a().sizes()[0] << std::endl;
                     rv.args.template append<int64_t>("StrideB0", problem.b().strides()[0]);
                     break;
                 case KernelArgumentType::StrideB1:
+		            std::cout << "StrideB1" << problem.a().sizes()[0] << std::endl;
                     rv.args.template append<int64_t>("StrideB1", problem.b().strides()[1]);
                     break;
                 case KernelArgumentType::StrideC0:
+		            std::cout << "StrideC0" << problem.c().strides()[0] << std::endl;
                     rv.args.template append<int64_t>("StrideC0", problem.c().strides()[0]);
                     break;
                 case KernelArgumentType::StrideC1:
+		            std::cout << "StrideC1" << problem.c().strides()[1] << std::endl;
                     rv.args.template append<int64_t>("StrideC1", problem.c().strides()[1]);
                     break;
                 case KernelArgumentType::StrideD0:
+		            std::cout << "StrideD0" << problem.d().strides()[0] << std::endl;
                     rv.args.template append<int64_t>("StrideD0", problem.d().strides()[0]);
                     break;
                 case KernelArgumentType::StrideD1:
+		            std::cout << "StrideD1" << problem.d().strides()[1] << std::endl;
                     rv.args.template append<int64_t>("StrideD1", problem.d().strides()[1]);
                     break;
                 case KernelArgumentType::Alpha:
+		            // std::cout << "Alpha" << inputs.alpha << std::endl;
                     rv.args.append("Alpha", inputs.alpha, problem.alphaType());
                     break;
                 case KernelArgumentType::Beta:
+		            // std::cout << "Beta" << inputs.beta << std::endl;
                     rv.args.append("Beta", inputs.beta, problem.betaType());
                     break;
                 case KernelArgumentType::ExtentA:
+		            std::cout << "ExtentA" << problem.a().totalLogicalElements() << std::endl;
                     rv.args.template append<int64_t>("ExtentA", problem.a().totalLogicalElements());
                     break;
                 case KernelArgumentType::ExtentB:
+		            std::cout << "ExtentB" <<  problem.b().totalLogicalElements() << std::endl;
                     rv.args.template append<int64_t>("ExtentB", problem.b().totalLogicalElements());
                     break;
                 case KernelArgumentType::ExtentC:
+		            std::cout << "ExtentC" << problem.c().totalLogicalElements() << std::endl;
                     rv.args.template append<int64_t>("ExtentC", problem.c().totalLogicalElements());
                     break;
                 case KernelArgumentType::ExtentD:
+		            std::cout << "ExtentD" << problem.d().totalLogicalElements() << std::endl;
                     rv.args.template append<int64_t>("ExtentD", problem.d().totalLogicalElements());
                     break;
                 case KernelArgumentType::DebugPattern:
@@ -1827,6 +1856,8 @@ namespace TensileLite
                     throw std::runtime_error(concatenate("Invalid kernel argument type for rocroller kernel: ", arg));
             }
         }
+        std::cout << "A\n" << problem.a().ToString() << "\nB\n" << problem.b().ToString() << "\nC\n" << problem.c().ToString() << "\nD\n" << problem.d().ToString() << std::endl;
+        std::cout << "KERNELARGS:\n" << rv.args << std::endl;
         return rv;
     }
 
@@ -3208,7 +3239,7 @@ namespace TensileLite
                                          "StreamK kernel with splitting factor < 2\n");
             }
         }
-
+	    std::cout << "KERNELNAME:\n" << sizeMapping.customKernel.name << std::endl;
         if(sizeMapping.customKernel.name.empty())
         {
             // Regular generated kernel
