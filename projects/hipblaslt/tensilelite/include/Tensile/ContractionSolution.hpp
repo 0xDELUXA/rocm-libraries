@@ -75,7 +75,15 @@ namespace TensileLite
         ExtentB,    // 20
         ExtentC,    // 21
         ExtentD,    // 22
-        Count,      // 23
+        SizeA0,     // 23
+        SizeA1,     // 24
+        SizeB0,     // 25
+        SizeB1,     // 26
+        SizeC0,     // 27
+        SizeC1,     // 28
+        SizeD0,     // 29
+        SizeD1,     // 30
+        Count,      // 31
     };
     
     std::string toString(KernelArgumentType arg);

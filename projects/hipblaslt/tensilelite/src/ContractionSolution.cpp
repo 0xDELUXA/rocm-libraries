@@ -104,6 +104,22 @@ namespace TensileLite
             return "ExtentC";
         case KernelArgumentType::ExtentD:
             return "ExtentD";
+        case KernelArgumentType::SizeA0:
+            return "SizeA0";
+        case KernelArgumentType::SizeA1:
+            return "SizeA1";
+        case KernelArgumentType::SizeB0:
+            return "SizeB0";
+        case KernelArgumentType::SizeB1:
+            return "SizeB1";
+        case KernelArgumentType::SizeC0:
+            return "SizeC0";
+        case KernelArgumentType::SizeC1:
+            return "SizeC1";
+        case KernelArgumentType::SizeD0:
+            return "SizeD0";
+        case KernelArgumentType::SizeD1:
+            return "SizeD1";
         case KernelArgumentType::Count:
             break;
         }
@@ -212,7 +228,39 @@ namespace TensileLite
         else if(strValue == toString(KernelArgumentType::ExtentD))
         {
             t = KernelArgumentType::ExtentD;
-        }        
+        }
+        else if(strValue == toString(KernelArgumentType::SizeA0))
+        {
+            t = KernelArgumentType::SizeA0;
+        }
+        else if(strValue == toString(KernelArgumentType::SizeA1))
+        {
+            t = KernelArgumentType::SizeA1;
+        }
+        else if(strValue == toString(KernelArgumentType::SizeB0))
+        {
+            t = KernelArgumentType::SizeB0;
+        }
+        else if(strValue == toString(KernelArgumentType::SizeB1))
+        {
+            t = KernelArgumentType::SizeB1;
+        }
+            else if(strValue == toString(KernelArgumentType::SizeC0))
+        {
+            t = KernelArgumentType::SizeC0;
+        }
+        else if(strValue == toString(KernelArgumentType::SizeC1))
+        {
+            t = KernelArgumentType::SizeC1;
+        }
+        else if(strValue == toString(KernelArgumentType::SizeD0))
+        {
+            t = KernelArgumentType::SizeD0;
+        }
+        else if(strValue == toString(KernelArgumentType::SizeD1))
+        {
+            t = KernelArgumentType::SizeD1;
+        }
         else
         {
             throw std::runtime_error(concatenate("Invalid argument type: ", strValue));
@@ -1694,17 +1742,29 @@ namespace TensileLite
         {
             switch(arg)
             {
-                case KernelArgumentType::SizeFree0:
-                    rv.args.template append<int64_t>("SizeFree0", problem.problemSizes()[0]);
+                case KernelArgumentType::SizeA0:
+                    rv.args.template append<int64_t>("SizeA0", problem.a()[0]);
                     break;
-                case KernelArgumentType::SizeFree1:
-                    rv.args.template append<int64_t>("SizeFree1", problem.problemSizes()[1]);
+                case KernelArgumentType::SizeA1:
+                    rv.args.template append<int64_t>("SizeA1", problem.a()[1]);
                     break;
-                case KernelArgumentType::SizeFree2:
-                    rv.args.template append<int64_t>("SizeFree2", problem.problemSizes()[2]);
+                case KernelArgumentType::SizeB0:
+                    rv.args.template append<int64_t>("SizeB0", problem.b()[0]);
                     break;
-                case KernelArgumentType::SizeSum:
-                    rv.args.template append<int64_t>("SizeSum", problem.problemSizes()[3]);
+                case KernelArgumentType::SizeB1:
+                    rv.args.template append<int64_t>("SizeB1", problem.b()[1]);
+                    break;
+                case KernelArgumentType::SizeC0:
+                    rv.args.template append<int64_t>("SizeC0", problem.c()[0]);
+                    break;
+                case KernelArgumentType::SizeC1:
+                    rv.args.template append<int64_t>("SizeC1", problem.c()[1]);
+                    break;
+                case KernelArgumentType::SizeD0:
+                    rv.args.template append<int64_t>("SizeD0", problem.d()[0]);
+                    break;
+                case KernelArgumentType::SizeD1:
+                    rv.args.template append<int64_t>("SizeD1", problem.d()[1]);
                     break;
                 case KernelArgumentType::AddressA:
                     rv.args.template append<void const*>("AddressA", inputs.a);
@@ -1719,28 +1779,28 @@ namespace TensileLite
                     rv.args.template append<void const*>("AddressD", inputs.d);
                     break;
                 case KernelArgumentType::StrideA0:
-                    rv.args.template append<int64_t>("StrideA0", problem.a().strides()[1]);
+                    rv.args.template append<int64_t>("StrideA0", problem.a().strides()[0]);
                     break;
                 case KernelArgumentType::StrideA1:
-                    rv.args.template append<int64_t>("StrideA1", problem.a().strides()[2]);
+                    rv.args.template append<int64_t>("StrideA1", problem.a().strides()[1]);
                     break;
                 case KernelArgumentType::StrideB0:
-                    rv.args.template append<int64_t>("StrideB0", problem.b().strides()[1]);
+                    rv.args.template append<int64_t>("StrideB0", problem.b().strides()[0]);
                     break;
                 case KernelArgumentType::StrideB1:
-                    rv.args.template append<int64_t>("StrideB1", problem.b().strides()[2]);
+                    rv.args.template append<int64_t>("StrideB1", problem.b().strides()[1]);
                     break;
                 case KernelArgumentType::StrideC0:
-                    rv.args.template append<int64_t>("StrideC0", problem.c().strides()[1]);
+                    rv.args.template append<int64_t>("StrideC0", problem.c().strides()[0]);
                     break;
                 case KernelArgumentType::StrideC1:
-                    rv.args.template append<int64_t>("StrideC1", problem.c().strides()[2]);
+                    rv.args.template append<int64_t>("StrideC1", problem.c().strides()[1]);
                     break;
                 case KernelArgumentType::StrideD0:
-                    rv.args.template append<int64_t>("StrideD0", problem.d().strides()[1]);
+                    rv.args.template append<int64_t>("StrideD0", problem.d().strides()[0]);
                     break;
                 case KernelArgumentType::StrideD1:
-                    rv.args.template append<int64_t>("StrideD1", problem.d().strides()[2]);
+                    rv.args.template append<int64_t>("StrideD1", problem.d().strides()[1]);
                     break;
                 case KernelArgumentType::Alpha:
                     rv.args.append("Alpha", inputs.alpha, problem.alphaType());
@@ -1749,22 +1809,22 @@ namespace TensileLite
                     rv.args.append("Beta", inputs.beta, problem.betaType());
                     break;
                 case KernelArgumentType::ExtentA:
-                    rv.args.template append<int64_t>("ExtentA", problem.problemSizes()[0] * problem.problemSizes()[3]);
+                    rv.args.template append<int64_t>("ExtentA", problem.a().totalLogicalElements());
                     break;
                 case KernelArgumentType::ExtentB:
-                    rv.args.template append<int64_t>("ExtentB", problem.problemSizes()[1] * problem.problemSizes()[3]);
+                    rv.args.template append<int64_t>("ExtentB", problem.b().totalLogicalElements());
                     break;
                 case KernelArgumentType::ExtentC:
-                    rv.args.template append<int64_t>("ExtentC", problem.problemSizes()[0] * problem.problemSizes()[1]);
+                    rv.args.template append<int64_t>("ExtentC", problem.c().totalLogicalElements());
                     break;
                 case KernelArgumentType::ExtentD:
-                    rv.args.template append<int64_t>("ExtentD", problem.problemSizes()[1] * problem.problemSizes()[1]);
+                    rv.args.template append<int64_t>("ExtentD", problem.d().totalLogicalElements());
                     break;
                 case KernelArgumentType::DebugPattern:
                     // N/A
                     break;
                 default:
-                    throw std::runtime_error(concatenate("Invalid kernel argument type: ", arg));
+                    throw std::runtime_error(concatenate("Invalid kernel argument type for rocroller kernel: ", arg));
             }
         }
         return rv;
