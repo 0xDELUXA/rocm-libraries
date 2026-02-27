@@ -1743,28 +1743,28 @@ namespace TensileLite
             switch(arg)
             {
                 case KernelArgumentType::SizeA0:
-                    rv.args.template append<int64_t>("SizeA0", problem.a()[0]);
+                    rv.args.template append<int64_t>("SizeA0", problem.a().sizes()[0]);
                     break;
                 case KernelArgumentType::SizeA1:
-                    rv.args.template append<int64_t>("SizeA1", problem.a()[1]);
+                    rv.args.template append<int64_t>("SizeA1", problem.a().sizes()[1]);
                     break;
                 case KernelArgumentType::SizeB0:
-                    rv.args.template append<int64_t>("SizeB0", problem.b()[0]);
+                    rv.args.template append<int64_t>("SizeB0", problem.b().sizes()[0]);
                     break;
                 case KernelArgumentType::SizeB1:
-                    rv.args.template append<int64_t>("SizeB1", problem.b()[1]);
+                    rv.args.template append<int64_t>("SizeB1", problem.b().sizes()[1]);
                     break;
                 case KernelArgumentType::SizeC0:
-                    rv.args.template append<int64_t>("SizeC0", problem.c()[0]);
+                    rv.args.template append<int64_t>("SizeC0", problem.c().sizes()[0]);
                     break;
                 case KernelArgumentType::SizeC1:
-                    rv.args.template append<int64_t>("SizeC1", problem.c()[1]);
+                    rv.args.template append<int64_t>("SizeC1", problem.c().sizes()[1]);
                     break;
                 case KernelArgumentType::SizeD0:
-                    rv.args.template append<int64_t>("SizeD0", problem.d()[0]);
+                    rv.args.template append<int64_t>("SizeD0", problem.d().sizes()[0]);
                     break;
                 case KernelArgumentType::SizeD1:
-                    rv.args.template append<int64_t>("SizeD1", problem.d()[1]);
+                    rv.args.template append<int64_t>("SizeD1", problem.d().sizes()[1]);
                     break;
                 case KernelArgumentType::AddressA:
                     rv.args.template append<void const*>("AddressA", inputs.a);
