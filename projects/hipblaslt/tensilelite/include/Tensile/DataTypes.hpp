@@ -376,6 +376,36 @@ namespace TensileLite
     std::string ToString(ConstantVariant d);
     bool        CompareValue(const ConstantVariant& d, double value);
 
+    enum CustomArgType
+    {
+        int8,
+        uint8,
+        int16,
+        uint16,
+        int32,
+        uint32,
+        int64,
+        uint64,
+        float4,
+        float6,
+        float8,
+        bfloat8,
+        float16,
+        bfloat16,
+        float32,
+        tfloat32,
+        float64,
+        // Complex types?
+        boolean,
+        address,
+        CustomArgType_Count,
+    };
+
+    std::string toString(CustomArgType arg);
+    CustomArgType fromStringCustomArgType(std::string& str);
+    std::ostream& operator<<(std::ostream& stream, const CustomArgType& t);
+    std::istream& operator>>(std::istream& stream, CustomArgType& t);
+
     /**
  * @}
  */

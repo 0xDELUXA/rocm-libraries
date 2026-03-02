@@ -368,15 +368,30 @@ namespace TensileLite
         };
 
         template <typename IO>
-        struct EnumTraits<KernelArgumentType, IO>
+        struct EnumTraits<CustomArgType, IO>
         {
             using iot = IOTraits<IO>;
 
-            static void enumeration(IO& io, KernelArgumentType& value)
+            static void enumeration(IO& io, CustomArgType& value)
             {
-                for(int i = 0; i < static_cast<int>(KernelArgumentType::Count); i++)
+                for(int i = 0; i < static_cast<int>(CustomArgType::CustomArgType_Count); i++)
                 {
-                    auto const& info = static_cast<KernelArgumentType>(i);
+                    auto const& info = static_cast<CustomArgType>(i);
+                    iot::enumCase(io, value, TensileLite::toString(info).c_str(), info);
+                }
+            }
+        };
+
+        template <typename IO>
+        struct EnumTraits<CustomArgSemantic, IO>
+        {
+            using iot = IOTraits<IO>;
+
+            static void enumeration(IO& io, CustomArgSemantic& value)
+            {
+                for(int i = 0; i < static_cast<int>(CustomArgSemantic::CustomArgSemantic_Count); i++)
+                {
+                    auto const& info = static_cast<CustomArgSemantic>(i);
                     iot::enumCase(io, value, TensileLite::toString(info).c_str(), info);
                 }
             }

@@ -153,6 +153,9 @@ namespace TensileLite
         void appendUnbound(std::string const& name);
 
         template <typename T>
+        void appendCustomType(std::string const& name, T value, CustomArgType type);
+
+        template <typename T>
         void bind(std::string const& name, T value);
 
         bool isFullyBound() const;
@@ -303,6 +306,97 @@ namespace TensileLite
     {
         append(name, static_cast<T>(0), false);
     }
+
+    template <typename T>
+    inline void KernelArguments::appendCustomType(std::string const& name, T value, CustomArgType type)
+    {
+        switch(type)
+        {
+        case CustomArgType::int8:
+            return append(name, static_cast<int8_t>(value));
+        case CustomArgType::uint8:
+            return append(name, static_cast<uint8_t>(value));
+        case CustomArgType::int16:
+            return append(name, static_cast<int16_t>(value));
+        case CustomArgType::uint16:
+            return append(name, static_cast<uint16_t>(value));
+        case CustomArgType::int32:
+            return append(name, static_cast<int32_t>(value));
+        case CustomArgType::uint32:
+            return append(name, static_cast<uint32_t>(value));
+        case CustomArgType::int64:
+            return append(name, static_cast<int64_t>(value));
+        case CustomArgType::uint64:
+            return append(name, static_cast<uint64_t>(value));
+        // case CustomArgType::float4:
+        //     return append(name, static_cast<float4>(value));
+        // case CustomArgType::float6:
+        //     return append(name, static_cast<float6>(value));
+        case CustomArgType::float8:
+            return append(name, static_cast<Float8>(value));
+        case CustomArgType::bfloat8:
+            return append(name, static_cast<BFloat8>(value));
+        case CustomArgType::float16:
+            return append(name, static_cast<Half>(value));
+        case CustomArgType::bfloat16:
+            return append(name, static_cast<BFloat16>(value));
+        case CustomArgType::float32:
+            return append(name, static_cast<float>(value));
+        case CustomArgType::tfloat32:
+            return append(name, static_cast<XFloat32>(value));
+        case CustomArgType::float64:
+            return append(name, static_cast<double>(value));
+        case CustomArgType::boolean:
+            return append(name, static_cast<bool>(value));
+        // case CustomArgType::address:
+        //     return append(name, static_cast<void*>(value));
+        case CustomArgType::float4:
+        case CustomArgType::float6:
+        case CustomArgType::address:
+        case CustomArgType::CustomArgType_Count:
+            throw std::runtime_error("Unsupported CustomArgType append type.");
+        }
+    }
+
+    template <>
+    inline void KernelArguments::appendCustomType<std::complex<float>>(std::string const& name, std::complex<float> value, CustomArgType type)
+    {
+        // Use real part if user requests cast from complex
+        appendCustomType(name, value.real(), type);
+    }
+
+    template <>
+    inline void KernelArguments::appendCustomType<std::complex<double>>(std::string const& name, std::complex<double> value, CustomArgType type)
+    {
+        // Use real part if user requests cast from complex
+        appendCustomType(name, value.real(), type);
+    }
+
+    template <>
+    inline void KernelArguments::appendCustomType<Int8x4>(std::string const& name, Int8x4 value, CustomArgType type)
+    {
+        // Use first value for conversion for now
+        appendCustomType(name, value.a, type);
+    }
+
+    template <>
+    inline void KernelArguments::appendCustomType<BFloat16>(std::string const& name, BFloat16 value, CustomArgType type)
+    {
+        // Convert to float first to facilitate other conversions
+        appendCustomType(name, static_cast<float>(value), type);
+    }
+
+    template <>
+    inline void KernelArguments::appendCustomType<ConstantVariant>(std::string const& name, ConstantVariant value, CustomArgType type)
+    {
+        // Read variant with type used to set it, and call template function to convert to target type
+        auto visitor = [this, &name, &type](auto&& arg) {
+            appendCustomType(name, arg, type);
+        };
+        std::visit(visitor, value);
+    }
+
+    
 
     template <typename T>
     inline void KernelArguments::bind(std::string const& name, T value)

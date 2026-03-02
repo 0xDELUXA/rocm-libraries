@@ -202,8 +202,8 @@ namespace TensileLite
         TENSILE_SERIALIZE_VECTOR(true, TensileLite::MLPClassification::ResBlock);
 
         template <typename IO>
-        struct SequenceTraits<std::vector<TensileLite::KernelArgumentType>, IO>
-            : public DefaultSequenceTraits<std::vector<TensileLite::KernelArgumentType>, IO, false>
+        struct SequenceTraits<std::vector<TensileLite::CustomArgDefinition>, IO>
+            : public DefaultSequenceTraits<std::vector<TensileLite::CustomArgDefinition>, IO, false>
         {
         };
 

@@ -87,6 +87,18 @@ namespace TensileLite
         };
 
         template <typename IO>
+        struct MappingTraits<CustomArgDefinition, IO>
+        {
+            using iot = IOTraits<IO>;
+            static void mapping(IO& io, CustomArgDefinition& s)
+            {
+                iot::mapRequired(io, "type", s.type);
+                iot::mapRequired(io, "semantic", s.semantic);
+            }
+            const static bool flow = true;
+        };
+
+        template <typename IO>
         struct MappingTraits<SizeMapping, IO>
         {
             using iot = IOTraits<IO>;

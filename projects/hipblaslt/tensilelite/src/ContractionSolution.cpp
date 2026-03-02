@@ -53,218 +53,132 @@
 
 namespace TensileLite
 {
-
-    std::string toString(KernelArgumentType arg)
+    std::string toString(CustomArgSemantic arg)
     {
         switch(arg)
         {
-        case KernelArgumentType::SizeFree0:
+        case CustomArgSemantic::SizeFree0:
             return "SizeFree0";
-        case KernelArgumentType::SizeFree1:
+        case CustomArgSemantic::SizeFree1:
             return "SizeFree1";
-        case KernelArgumentType::SizeFree2:
+        case CustomArgSemantic::SizeFree2:
             return "SizeFree2";
-        case KernelArgumentType::SizeSum:
+        case CustomArgSemantic::SizeSum:
             return "SizeSum";
-        case KernelArgumentType::AddressA:
+        case CustomArgSemantic::AddressA:
             return "AddressA";
-        case KernelArgumentType::AddressB:
+        case CustomArgSemantic::AddressB:
             return "AddressB";
-        case KernelArgumentType::AddressC:
+        case CustomArgSemantic::AddressC:
             return "AddressC";
-        case KernelArgumentType::AddressD:
+        case CustomArgSemantic::AddressD:
             return "AddressD";
-        case KernelArgumentType::StrideA0:
+        case CustomArgSemantic::StrideA0:
             return "StrideA0";
-        case KernelArgumentType::StrideA1:
+        case CustomArgSemantic::StrideA1:
             return "StrideA1";
-        case KernelArgumentType::StrideB0:
+        case CustomArgSemantic::StrideB0:
             return "StrideB0";
-        case KernelArgumentType::StrideB1:
+        case CustomArgSemantic::StrideB1:
             return "StrideB1";
-        case KernelArgumentType::StrideC0:
+        case CustomArgSemantic::StrideC0:
             return "StrideC0";
-        case KernelArgumentType::StrideC1:
+        case CustomArgSemantic::StrideC1:
             return "StrideC1";
-        case KernelArgumentType::StrideD0:
+        case CustomArgSemantic::StrideD0:
             return "StrideD0";
-        case KernelArgumentType::StrideD1:
+        case CustomArgSemantic::StrideD1:
             return "StrideD1";
-        case KernelArgumentType::Alpha:
+        case CustomArgSemantic::Alpha:
             return "Alpha";
-        case KernelArgumentType::Beta:
+        case CustomArgSemantic::Beta:
             return "Beta";
-        case KernelArgumentType::DebugPattern:
+        case CustomArgSemantic::DebugPattern:
             return "DebugPattern";
-        case KernelArgumentType::ExtentA:
-            return "ExtentA";
-        case KernelArgumentType::ExtentB:
-            return "ExtentB";
-        case KernelArgumentType::ExtentC:
-            return "ExtentC";
-        case KernelArgumentType::ExtentD:
-            return "ExtentD";
-        case KernelArgumentType::SizeA0:
-            return "SizeA0";
-        case KernelArgumentType::SizeA1:
-            return "SizeA1";
-        case KernelArgumentType::SizeB0:
-            return "SizeB0";
-        case KernelArgumentType::SizeB1:
-            return "SizeB1";
-        case KernelArgumentType::SizeC0:
-            return "SizeC0";
-        case KernelArgumentType::SizeC1:
-            return "SizeC1";
-        case KernelArgumentType::SizeD0:
-            return "SizeD0";
-        case KernelArgumentType::SizeD1:
-            return "SizeD1";
-        case KernelArgumentType::Count:
+        case CustomArgSemantic::CustomArgSemantic_Count:
             break;
         }
 
         throw std::runtime_error(
-            concatenate("Invalid KernelArgumentType value: ", static_cast<int>(arg)));
+            concatenate("Invalid CustomArgSemantic value: ", static_cast<int>(arg)));
     }
 
-    std::ostream& operator<<(std::ostream& stream, const KernelArgumentType& t)
+    CustomArgSemantic fromStringCustomArgSemantic(std::string& str)
+    {
+        
+        if(str == toString(CustomArgSemantic::SizeFree0))
+            return CustomArgSemantic::SizeFree0;
+        else if(str == toString(CustomArgSemantic::SizeFree1))
+            return CustomArgSemantic::SizeFree1;
+        else if(str == toString(CustomArgSemantic::SizeFree2))
+            return CustomArgSemantic::SizeFree2;
+        else if(str == toString(CustomArgSemantic::SizeSum))
+            return CustomArgSemantic::SizeSum;
+        else if(str == toString(CustomArgSemantic::AddressA))
+            return CustomArgSemantic::AddressA;
+        else if(str == toString(CustomArgSemantic::AddressB))
+            return CustomArgSemantic::AddressB;
+        else if(str == toString(CustomArgSemantic::AddressC))
+            return CustomArgSemantic::AddressC;
+        else if(str == toString(CustomArgSemantic::AddressD))
+            return CustomArgSemantic::AddressD;
+        else if(str == toString(CustomArgSemantic::StrideA0))
+            return CustomArgSemantic::StrideA0;
+        else if(str == toString(CustomArgSemantic::StrideA1))
+            return CustomArgSemantic::StrideA1;
+        else if(str == toString(CustomArgSemantic::StrideB0))
+            return CustomArgSemantic::StrideB0;
+        else if(str == toString(CustomArgSemantic::StrideB1))
+            return CustomArgSemantic::StrideB1;
+        else if(str == toString(CustomArgSemantic::StrideC0))
+            return CustomArgSemantic::StrideC0;
+        else if(str == toString(CustomArgSemantic::StrideC1))
+            return CustomArgSemantic::StrideC1;
+        else if(str == toString(CustomArgSemantic::StrideD0))
+            return CustomArgSemantic::StrideD0;
+        else if(str == toString(CustomArgSemantic::StrideD1))
+            return CustomArgSemantic::StrideD1;
+        else if(str == toString(CustomArgSemantic::Alpha))
+            return CustomArgSemantic::Alpha;
+        else if(str == toString(CustomArgSemantic::Beta))
+            return CustomArgSemantic::Beta;
+        else if(str == toString(CustomArgSemantic::DebugPattern))
+            return CustomArgSemantic::DebugPattern;
+        else
+            throw std::runtime_error(concatenate("Invalid argument type: ", str));
+        return CustomArgSemantic::CustomArgSemantic_Count;
+    }
+
+    std::ostream& operator<<(std::ostream& stream, const CustomArgSemantic& t)
     {
         return stream << toString(t);
     }
 
-    std::istream& operator>>(std::istream& stream, KernelArgumentType& t)
+    std::istream& operator>>(std::istream& stream, CustomArgSemantic& t)
     {
         std::string strValue;
         stream >> strValue;
-        if(strValue == toString(KernelArgumentType::SizeFree0))
-        {
-            t = KernelArgumentType::SizeFree0;
-        }
-        else if(strValue == toString(KernelArgumentType::SizeFree1))
-        {
-            t = KernelArgumentType::SizeFree1;
-        }
-        else if(strValue == toString(KernelArgumentType::SizeFree2))
-        {
-            t = KernelArgumentType::SizeFree2;
-        }
-        else if(strValue == toString(KernelArgumentType::SizeSum))
-        {
-            t = KernelArgumentType::SizeSum;
-        }
-        else if(strValue == toString(KernelArgumentType::AddressA))
-        {
-            t = KernelArgumentType::AddressA;
-        }
-        else if(strValue == toString(KernelArgumentType::AddressB))
-        {
-            t = KernelArgumentType::AddressB;
-        }
-        else if(strValue == toString(KernelArgumentType::AddressC))
-        {
-            t = KernelArgumentType::AddressC;
-        }
-        else if(strValue == toString(KernelArgumentType::AddressD))
-        {
-            t = KernelArgumentType::AddressD;
-        }
-        else if(strValue == toString(KernelArgumentType::StrideA0))
-        {
-            t = KernelArgumentType::StrideA0;
-        }
-        else if(strValue == toString(KernelArgumentType::StrideA1))
-        {
-            t = KernelArgumentType::StrideA1;
-        }
-        else if(strValue == toString(KernelArgumentType::StrideB0))
-        {
-            t = KernelArgumentType::StrideB0;
-        }
-        else if(strValue == toString(KernelArgumentType::StrideB1))
-        {
-            t = KernelArgumentType::StrideB1;
-        }
-        else if(strValue == toString(KernelArgumentType::StrideC0))
-        {
-            t = KernelArgumentType::StrideC0;
-        }
-        else if(strValue == toString(KernelArgumentType::StrideC1))
-        {
-            t = KernelArgumentType::StrideC1;
-        }
-        else if(strValue == toString(KernelArgumentType::StrideD0))
-        {
-            t = KernelArgumentType::StrideD0;
-        }
-        else if(strValue == toString(KernelArgumentType::StrideD1))
-        {
-            t = KernelArgumentType::StrideD1;
-        }
-        else if(strValue == toString(KernelArgumentType::Alpha))
-        {
-            t = KernelArgumentType::Alpha;
-        }
-        else if(strValue == toString(KernelArgumentType::Beta))
-        {
-            t = KernelArgumentType::Beta;
-        }
-        else if(strValue == toString(KernelArgumentType::DebugPattern))
-        {
-            t = KernelArgumentType::DebugPattern;
-        }
-        else if(strValue == toString(KernelArgumentType::ExtentA))
-        {
-            t = KernelArgumentType::ExtentA;
-        }
-        else if(strValue == toString(KernelArgumentType::ExtentB))
-        {
-            t = KernelArgumentType::ExtentB;
-        }
-        else if(strValue == toString(KernelArgumentType::ExtentC))
-        {
-            t = KernelArgumentType::ExtentC;
-        }
-        else if(strValue == toString(KernelArgumentType::ExtentD))
-        {
-            t = KernelArgumentType::ExtentD;
-        }
-        else if(strValue == toString(KernelArgumentType::SizeA0))
-        {
-            t = KernelArgumentType::SizeA0;
-        }
-        else if(strValue == toString(KernelArgumentType::SizeA1))
-        {
-            t = KernelArgumentType::SizeA1;
-        }
-        else if(strValue == toString(KernelArgumentType::SizeB0))
-        {
-            t = KernelArgumentType::SizeB0;
-        }
-        else if(strValue == toString(KernelArgumentType::SizeB1))
-        {
-            t = KernelArgumentType::SizeB1;
-        }
-            else if(strValue == toString(KernelArgumentType::SizeC0))
-        {
-            t = KernelArgumentType::SizeC0;
-        }
-        else if(strValue == toString(KernelArgumentType::SizeC1))
-        {
-            t = KernelArgumentType::SizeC1;
-        }
-        else if(strValue == toString(KernelArgumentType::SizeD0))
-        {
-            t = KernelArgumentType::SizeD0;
-        }
-        else if(strValue == toString(KernelArgumentType::SizeD1))
-        {
-            t = KernelArgumentType::SizeD1;
-        }
-        else
-        {
-            throw std::runtime_error(concatenate("Invalid argument type: ", strValue));
-        }
+        t = fromStringCustomArgSemantic(strValue);
+        return stream;
+    }
+
+    std::string toString(CustomArgDefinition arg)
+    {
+        return toString(arg.type) + " " + toString(arg.semantic);
+    }
+
+    std::ostream& operator<<(std::ostream& stream, const CustomArgDefinition& t)
+    {
+        return stream << toString(t);
+    }
+
+    std::istream& operator>>(std::istream& stream, CustomArgDefinition& t)
+    {
+        std::string strType;
+        std::string strSemantic;
+        stream >> strType >> strSemantic;
+        t.type = fromStringCustomArgType(strType);
+        t.semantic = fromStringCustomArgSemantic(strSemantic);
         return stream;
     }
 
@@ -1598,7 +1512,7 @@ namespace TensileLite
         numWorkGroups.x = CeilDivide(numWorkGroups.x, sizeMapping.macroTile.x);
         numWorkGroups.y = CeilDivide(numWorkGroups.y, sizeMapping.macroTile.y);
     }
-
+    
     template <bool T_Debug>
     KernelInvocation ContractionSolution::generateCustomCall(ContractionSolution::Problem const& problem,
                                                 ContractionInputs const&            inputs,
@@ -1634,65 +1548,71 @@ namespace TensileLite
 
         uint32_t debugPattern = 0xDB000001;
 
+        if(T_Debug)
+            std::cout << "Custom call arguments:" << std::endl;
+
         for(auto arg : sizeMapping.customKernel.args)
         {
-            switch(arg)
+            if(T_Debug)
+                std::cout << "Type: " << toString(arg.type) << " Semantic: " << toString(arg.semantic) << std::endl;
+
+            switch(arg.semantic)
             {
-                case KernelArgumentType::SizeFree0:
-                    rv.args.template append<uint32_t>("SizeFree0", problem.problemSizes()[0]);
+                case CustomArgSemantic::SizeFree0:
+                    rv.args.appendCustomType("SizeFree0", problem.problemSizes()[0], arg.type);
                     break;
-                case KernelArgumentType::SizeFree1:
-                    rv.args.template append<uint32_t>("SizeFree1", problem.problemSizes()[1]);
+                case CustomArgSemantic::SizeFree1:
+                    rv.args.appendCustomType("SizeFree1", problem.problemSizes()[1], arg.type);
                     break;
-                case KernelArgumentType::SizeFree2:
-                    rv.args.template append<uint32_t>("SizeFree2", problem.problemSizes()[2]);
+                case CustomArgSemantic::SizeFree2:
+                    rv.args.appendCustomType("SizeFree2", problem.problemSizes()[2], arg.type);
                     break;
-                case KernelArgumentType::SizeSum:
-                    rv.args.template append<uint32_t>("SizeSum", problem.problemSizes()[3]);
+                case CustomArgSemantic::SizeSum:
+                    rv.args.appendCustomType("SizeSum", problem.problemSizes()[3], arg.type);
                     break;
-                case KernelArgumentType::AddressA:
+                case CustomArgSemantic::AddressA:
                     rv.args.template append<void const*>("AddressA", inputs.a);
                     break;
-                case KernelArgumentType::AddressB:
+                case CustomArgSemantic::AddressB:
                     rv.args.template append<void const*>("AddressB", inputs.b);
                     break;
-                case KernelArgumentType::AddressC:
+                case CustomArgSemantic::AddressC:
                     rv.args.template append<void const*>("AddressC", inputs.c);
                     break;
-                case KernelArgumentType::AddressD:
+                case CustomArgSemantic::AddressD:
                     rv.args.template append<void const*>("AddressD", inputs.d);
                     break;
-                case KernelArgumentType::StrideA0:
-                    rv.args.template append<uint32_t>("StrideA0", problem.a().strides()[1]);
+                case CustomArgSemantic::StrideA0:
+                    rv.args.appendCustomType("StrideA0", problem.a().strides()[1], arg.type);
                     break;
-                case KernelArgumentType::StrideA1:
-                    rv.args.template append<uint32_t>("StrideA1", problem.a().strides()[2]);
+                case CustomArgSemantic::StrideA1:
+                    rv.args.appendCustomType("StrideA1", problem.a().strides()[2], arg.type);
                     break;
-                case KernelArgumentType::StrideB0:
-                    rv.args.template append<uint32_t>("StrideB0", problem.b().strides()[1]);
+                case CustomArgSemantic::StrideB0:
+                    rv.args.appendCustomType("StrideB0", problem.b().strides()[1], arg.type);
                     break;
-                case KernelArgumentType::StrideB1:
-                    rv.args.template append<uint32_t>("StrideB1", problem.b().strides()[2]);
+                case CustomArgSemantic::StrideB1:
+                    rv.args.appendCustomType("StrideB1", problem.b().strides()[2], arg.type);
                     break;
-                case KernelArgumentType::StrideC0:
-                    rv.args.template append<uint32_t>("StrideC0", problem.c().strides()[1]);
+                case CustomArgSemantic::StrideC0:
+                    rv.args.appendCustomType("StrideC0", problem.c().strides()[1], arg.type);
                     break;
-                case KernelArgumentType::StrideC1:
-                    rv.args.template append<uint32_t>("StrideC1", problem.c().strides()[2]);
+                case CustomArgSemantic::StrideC1:
+                    rv.args.appendCustomType("StrideC1", problem.c().strides()[2], arg.type);
                     break;
-                case KernelArgumentType::StrideD0:
-                    rv.args.template append<uint32_t>("StrideD0", problem.d().strides()[1]);
+                case CustomArgSemantic::StrideD0:
+                    rv.args.appendCustomType("StrideD0", problem.d().strides()[1], arg.type);
                     break;
-                case KernelArgumentType::StrideD1:
-                    rv.args.template append<uint32_t>("StrideD1", problem.d().strides()[2]);
+                case CustomArgSemantic::StrideD1:
+                    rv.args.appendCustomType("StrideD1", problem.d().strides()[2], arg.type);
                     break;
-                case KernelArgumentType::Alpha:
-                    rv.args.append("Alpha", inputs.alpha, problem.alphaType());
+                case CustomArgSemantic::Alpha:
+                    rv.args.appendCustomType("Alpha", inputs.alpha, arg.type);
                     break;
-                case KernelArgumentType::Beta:
-                    rv.args.append("Beta", inputs.beta, problem.betaType());
+                case CustomArgSemantic::Beta:
+                    rv.args.appendCustomType("Beta", inputs.beta, arg.type);
                     break;
-                case KernelArgumentType::DebugPattern:
+                case CustomArgSemantic::DebugPattern:
                     rv.args.template append<uint32_t>("DebugPattern", debugPattern);
                     ++debugPattern;
                     break;
@@ -2153,7 +2073,7 @@ namespace TensileLite
                                          rv.numWorkItems.x / rv.workGroupSize.x / rv.workGroupSize.y
                                              / rv.workGroupSize.z);
                 kernelArgs<T_Debug, true>(0,
-                                          (uint32_t)KERNELARGTYPE::NORMAL,
+                    (uint32_t)KERNELARGTYPE::NORMAL,
                                           rv.args,
                                           0,
                                           &hardware,
