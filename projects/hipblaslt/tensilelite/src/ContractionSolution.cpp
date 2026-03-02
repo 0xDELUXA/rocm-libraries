@@ -3001,7 +3001,7 @@ namespace TensileLite
                                          "StreamK kernel with splitting factor < 2\n");
             }
         }
-	    std::cout << "KERNELNAME:\n" << sizeMapping.customKernel.name << std::endl;
+
         if(sizeMapping.customKernel.name.empty())
         {
             // Regular generated kernel
