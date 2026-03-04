@@ -52,14 +52,14 @@ BenchmarkProblems:
                     { type: float32, semantic: Alpha },
                     { type: float32, semantic: Beta },
                     { type: int64, semantic: StrideA0 }, 
-                    { type: int64, semantic: SizeA0 },
+                    { type: int64, semantic: SizeSum },
                     { type: int64, semantic: StrideB0 },
                     { type: int64, semantic: StrideC0 },
                     { type: int64, semantic: StrideD0 },
                     { type: int64, semantic: StrideD1 }, 
                     { type: address, semantic: AddressD } ]
         - MatrixInstruction:
-          - [16,16,16, 1, 1, 8,8, 2,2] # 256 x 128
+          - [16,16,16, 1, 1, 2,2, 2,2] # 256 x 128
         - PreloadKernArgs: [False]
         # - PrefetchGlobalRead: [2]
         # - PrefetchLocalRead: [1]

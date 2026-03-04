@@ -1526,9 +1526,9 @@ namespace TensileLite
         rv.kernelName = kernelName;
         
         calculateGrid(rv.workGroupSize, rv.numWorkGroups, problem);
-        rv.numWorkGroups.x *= (rv.numWorkGroups.y * rv.numWorkGroups.z);
-        rv.numWorkGroups.y = 1;
-        rv.numWorkGroups.z = 1;
+        // rv.numWorkGroups.x *= (rv.numWorkGroups.y * rv.numWorkGroups.z);
+        // rv.numWorkGroups.y = 1;
+        // rv.numWorkGroups.z = 1;
 
         rv.numWorkItems.x = rv.workGroupSize.x * rv.numWorkGroups.x;
         rv.numWorkItems.y = rv.workGroupSize.y * rv.numWorkGroups.y;
