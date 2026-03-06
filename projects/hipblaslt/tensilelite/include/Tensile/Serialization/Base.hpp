@@ -398,6 +398,20 @@ namespace TensileLite
         };
 
         template <typename IO>
+        struct EnumTraits<CustomGridSize, IO>
+        {
+            using iot = IOTraits<IO>;
+            static void enumeration(IO& io, CustomGridSize& value)
+            {
+                for(int i = 0; i < static_cast<int>(CustomGridSize::CustomGridSize_Count); i++)
+                {
+                    auto const& info = static_cast<CustomGridSize>(i);
+                    iot::enumCase(io, value, TensileLite::toString(info).c_str(), info);
+                }
+            }
+        };
+
+        template <typename IO>
         struct EnumTraits<ActivationType, IO>
         {
             using iot = IOTraits<IO>;

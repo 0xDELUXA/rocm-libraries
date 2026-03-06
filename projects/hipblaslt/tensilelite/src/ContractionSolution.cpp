@@ -182,6 +182,69 @@ namespace TensileLite
         return stream;
     }
 
+    std::string toString(CustomGridSize size)
+    {
+        switch(size)
+        {
+        case CustomGridSize::One:
+            return "One";
+        case CustomGridSize::TilesX:
+            return "TilesX";
+        case CustomGridSize::TilesY:
+            return "TilesY";
+        case CustomGridSize::Batch:
+            return "Batch";
+        case CustomGridSize::TilesXY:
+            return "TilesXY";
+        case CustomGridSize::TilesXYBatch:
+            return "TilesXYBatch";
+        case CustomGridSize::StreamKWithBatch:
+            return "StreamKWithBatch";
+        case CustomGridSize::StreamKNoBatch:
+            return "StreamKNoBatch";
+        case CustomGridSize::CustomGridSize_Count:
+            break;
+        }
+
+        throw std::runtime_error(concatenate("Invalid CustomGridSize value: ", static_cast<int>(size)));
+    }
+
+    CustomGridSize fromStringCustomGridSize(std::string& str)
+    {
+        if(str == toString(CustomGridSize::One))
+            return CustomGridSize::One;
+        else if(str == toString(CustomGridSize::TilesX))
+            return CustomGridSize::TilesX;
+        else if(str == toString(CustomGridSize::TilesY))
+            return CustomGridSize::TilesY;
+        else if(str == toString(CustomGridSize::Batch))
+            return CustomGridSize::Batch;
+        else if(str == toString(CustomGridSize::TilesXY))
+            return CustomGridSize::TilesXY;
+        else if(str == toString(CustomGridSize::TilesXYBatch))
+            return CustomGridSize::TilesXYBatch;
+        else if(str == toString(CustomGridSize::StreamKWithBatch))
+            return CustomGridSize::StreamKWithBatch;
+        else if(str == toString(CustomGridSize::StreamKNoBatch))
+            return CustomGridSize::StreamKNoBatch;
+        else
+            throw std::runtime_error(concatenate("Invalid CustomGridSize value: ", str));
+        return CustomGridSize::CustomGridSize_Count;
+    }
+
+    std::ostream& operator<<(std::ostream& stream, const CustomGridSize& t)
+    {
+        return stream << toString(t);
+    }
+
+    std::istream& operator>>(std::istream& stream, CustomGridSize& t)
+    {
+        std::string strValue;
+        stream >> strValue;
+        t = fromStringCustomGridSize(strValue);
+        return stream;
+    }
+
     enum class KERNELARGTYPE
     {
         NORMAL   = 0,
@@ -1474,6 +1537,39 @@ namespace TensileLite
         }
     }
 
+    void ContractionSolution::calculateTiles(dim3& tiles,
+                                             ContractionSolution::Problem const& problem) const
+    {
+        tiles.x = 1;
+        tiles.y = 1;
+
+        for(size_t i = 0; i < problem.freeIndicesA().size(); i++)
+        {
+            tiles.x *= problem.freeSizeA(i);
+        }
+        for(size_t i = 0; i < problem.freeIndicesB().size(); i++)
+        {
+            tiles.y *= problem.freeSizeB(i);
+        }
+
+        tiles.z = 1;
+        for(size_t i = 0; i < problem.batchIndices().size(); i++)
+        {
+            // if(sizeMapping.packBatchDims & 0x1)
+            //     numWorkGroups.x *= problem.batchSize(i);
+            // if(sizeMapping.packBatchDims & 0x2)
+            //     numWorkGroups.y *= problem.batchSize(i);
+            if(!sizeMapping.packBatchDims)
+                tiles.z *= problem.batchSize(i);
+        }
+
+        if(problem.transposeC01())
+            std::swap(tiles.x, tiles.y);
+
+        tiles.x = CeilDivide(tiles.x, sizeMapping.customKernel.macrotile.x);
+        tiles.y = CeilDivide(tiles.y, sizeMapping.customKernel.macrotile.y);
+    }
+
     void ContractionSolution::calculateGrid(dim3&                               workGroupSize,
                                             dim3&                               numWorkGroups,
                                             ContractionSolution::Problem const& problem) const
@@ -1525,10 +1621,74 @@ namespace TensileLite
         rv.args.reserve(1024, 128);
         rv.kernelName = kernelName;
         
-        calculateGrid(rv.workGroupSize, rv.numWorkGroups, problem);
-        // rv.numWorkGroups.x *= (rv.numWorkGroups.y * rv.numWorkGroups.z);
-        // rv.numWorkGroups.y = 1;
-        // rv.numWorkGroups.z = 1;
+        AMDGPU const* pAMDGPU = dynamic_cast<AMDGPU const*>(&hardware);
+        assert(pAMDGPU);
+
+        int wavefrontSize = pAMDGPU->wavefrontSize;
+        // rv.workGroupSize.x = sizeMapping.customKernel.waves.x * wavefrontSize;
+        // rv.workGroupSize.y = sizeMapping.customKernel.waves.y * wavefrontSize;
+        // rv.workGroupSize.z = sizeMapping.customKernel.waves.z * wavefrontSize;
+        rv.workGroupSize.x = sizeMapping.customKernel.threads.x;
+        rv.workGroupSize.y = sizeMapping.customKernel.threads.y;
+        rv.workGroupSize.z = sizeMapping.customKernel.threads.z;
+
+        if(T_Debug)
+        {
+            std::cout << "Wavefront size: " << wavefrontSize << std::endl;
+            std::cout << "Threads: " << sizeMapping.customKernel.threads.x << ", " << sizeMapping.customKernel.threads.y << ", " << sizeMapping.customKernel.threads.z << std::endl;
+            std::cout << "Work group size: " << rv.workGroupSize.x << ", " << rv.workGroupSize.y << ", " << rv.workGroupSize.z << std::endl;
+            std::cout << "Macrotile: " << sizeMapping.customKernel.macrotile.x << ", " << sizeMapping.customKernel.macrotile.y << ", " << sizeMapping.customKernel.macrotile.z << std::endl;
+        }
+
+        dim3 tiles;
+        calculateTiles(tiles, problem);
+
+        if(T_Debug)
+        {
+            std::cout << "Tiles: " << tiles.x << ", " << tiles.y << ", " << tiles.z << std::endl;
+        }
+
+        auto assignGridSize = [tiles](size_t& dim, CustomGridSize size) {
+            switch(size)
+            {
+                case CustomGridSize::One:
+                    dim = 1;
+                    break;
+                case CustomGridSize::TilesX:
+                    dim = tiles.x;
+                    break;
+                case CustomGridSize::TilesY:
+                    dim = tiles.y;
+                    break;
+                case CustomGridSize::Batch:
+                    dim = tiles.z;
+                    break;
+                case CustomGridSize::TilesXY:
+                    dim = tiles.x * tiles.y;
+                    break;
+                case CustomGridSize::TilesXYBatch:
+                    dim = tiles.x * tiles.y * tiles.z;
+                    break;
+                // case CustomGridSize::StreamKWithBatch:
+                //     dim = TODO
+                //     break;
+                // case CustomGridSize::StreamKNoBatch:
+                //     dim = TODO
+                //     break;
+                default:
+                    throw std::runtime_error(concatenate("Invalid CustomGridSize value: ", static_cast<int>(size)));
+                    break;
+            }
+        };
+
+        assignGridSize(rv.numWorkGroups.x, sizeMapping.customKernel.grid.x);
+        assignGridSize(rv.numWorkGroups.y, sizeMapping.customKernel.grid.y);
+        assignGridSize(rv.numWorkGroups.z, sizeMapping.customKernel.grid.z);
+
+        if(T_Debug)
+        {
+            std::cout << "Num work groups: " << rv.numWorkGroups.x << ", " << rv.numWorkGroups.y << ", " << rv.numWorkGroups.z << std::endl;
+        }
 
         rv.numWorkItems.x = rv.workGroupSize.x * rv.numWorkGroups.x;
         rv.numWorkItems.y = rv.workGroupSize.y * rv.numWorkGroups.y;

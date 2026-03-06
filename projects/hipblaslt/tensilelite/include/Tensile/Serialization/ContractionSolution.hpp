@@ -81,6 +81,9 @@ namespace TensileLite
             {
                 iot::mapOptional(io, "name", s.name);
                 iot::mapOptional(io, "args", s.args);
+                iot::mapOptional(io, "macrotile", s.macrotile);
+                iot::mapOptional(io, "threads", s.threads);
+                iot::mapOptional(io, "grid", s.grid);
             }
 
             const static bool flow = false;

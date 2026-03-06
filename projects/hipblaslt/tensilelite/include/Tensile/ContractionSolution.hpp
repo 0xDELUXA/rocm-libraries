@@ -50,8 +50,6 @@
 
 namespace TensileLite
 {
-    
-
     enum CustomArgSemantic
     {
         SizeFree0,  // 0
@@ -90,6 +88,34 @@ namespace TensileLite
     std::string toString(CustomArgDefinition arg);
     std::ostream& operator<<(std::ostream& stream, const CustomArgDefinition& t);
     std::istream& operator>>(std::istream& stream, CustomArgDefinition& t);
+
+    enum CustomGridSize
+    {
+        One,
+        TilesX,
+        TilesY,
+        Batch,
+        TilesXY,
+        TilesXYBatch,
+        StreamKWithBatch,
+        StreamKNoBatch,
+        // TODO SplitK
+        CustomGridSize_Count,
+    };
+
+    std::string toString(CustomGridSize mode);
+    CustomGridSize fromStringCustomGridSize(std::string& str);
+    std::ostream& operator<<(std::ostream& stream, const CustomGridSize& t);
+    std::istream& operator>>(std::istream& stream, CustomGridSize& t);
+
+    struct CustomKernel
+    {
+        std::string name;
+        std::vector<CustomArgDefinition> args;
+        dim3 macrotile;
+        dim3 threads;
+        vector3<CustomGridSize> grid;
+    };
 
     template <typename TAct>
     struct DeviceUserArguments
@@ -150,12 +176,6 @@ namespace TensileLite
         size_t shiftPtrElemB;
         size_t depthUorMT0;
         size_t depthUorMT1;
-    };
-
-    struct CustomKernel
-    {
-        std::string name;
-        std::vector<CustomArgDefinition> args;
     };
 
     struct SizeMapping
@@ -376,6 +396,8 @@ namespace TensileLite
 
         size_t requiredSynchronizerSize(Problem const& problem, Hardware const& hardware) const;
 
+        void                 calculateTiles(dim3& tiles,
+                                            ContractionSolution::Problem const& problem) const;
         void                 calculateGrid(dim3&                               workGroupSize,
                                            dim3&                               numWorkGroups,
                                            ContractionSolution::Problem const& problem) const;

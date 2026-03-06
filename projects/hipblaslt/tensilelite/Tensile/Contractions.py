@@ -582,11 +582,11 @@ class ProblemPredicate(Properties.Predicate):
         return cls.And(predicates)
 
 class CustomKernel:
-    StateKeys = ['name', 'args']
+    StateKeys = ['name', 'args', 'macrotile', 'threads', 'grid']
 
     @classmethod
     def FromOriginalState(cls, d):
-        return cls(name=d['name'], args=d['args'])
+        return cls(name=d['name'], args=d['args'], macrotile=d['macrotile'], threads=d['threads'], grid=d['grid'])
 
     def __init__(self, **kwargs):
         for (key, value) in list(kwargs.items()):
