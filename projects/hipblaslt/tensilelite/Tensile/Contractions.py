@@ -589,6 +589,11 @@ class CustomKernel:
         return cls(name=d['name'], args=d['args'], macrotile=d['macrotile'], threads=d['threads'], grid=d['grid'])
 
     def __init__(self, **kwargs):
+        self.name = ""
+        self.args = []
+        self.macrotile = [0,0,0]
+        self.threads = [0,0,0]
+        self.grid = [0,0,0]
         for (key, value) in list(kwargs.items()):
             setattr(self, key, value)
 
@@ -684,7 +689,7 @@ class SizeMapping:
         if 'CustomKernel' in d:
             customKernel = CustomKernel.FromOriginalState(d['CustomKernel'])
         else:
-            customKernel = CustomKernel(name="", args=[])
+            customKernel = CustomKernel(name="", args=[], macrotile=[0,0,0], threads=[0,0,0], grid=[0,0,0])
 
         return cls(waveNum                  = d['NumThreads'] // d['WavefrontSize'],
                    workGroup                = d['WorkGroup'],
