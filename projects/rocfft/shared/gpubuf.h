@@ -21,8 +21,11 @@
 #ifndef ROCFFT_GPUBUF_H
 #define ROCFFT_GPUBUF_H
 
+#include "device_properties.h"
 #include "rocfft_hip.h"
+#include "sys_mem.h"
 #include <cstdlib>
+#include <sstream>
 
 // Simple RAII class for GPU buffers.  T is the type of pointer that
 // data() returns
@@ -74,6 +77,20 @@ public:
 
     hipError_t alloc(const size_t size, bool make_it_shared = false)
     {
+        free();
+        const auto dev_prop = get_curr_device_prop();
+        if(dev_prop.integrated && size > system_memory::singleton().get_usable_bytes())
+        {
+            std::stringstream msg;
+            auto&             sys_mem = system_memory::singleton();
+            msg << "Unauthorized (integrated) device allocation.\n"
+                << "\tRequested size is " << system_memory::byte_size_to_str(size) << "\n"
+                << "\tUsable memory: " << sys_mem.get_usable_bytes_str() << "\n"
+                << "\tFree system memory: " << sys_mem.get_free_bytes_str() << "\n"
+                << "\tUsed system memory: " << sys_mem.get_used_bytes_str() << "\n"
+                << "\tEnforced limit on memory usage: " << sys_mem.get_limit_bytes_str();
+            throw SYS_MEM_USAGE{msg.str()};
+        }
         // remember the device that was current as of alloc, so we can
         // free on the correct device
         auto ret = hipGetDevice(&device);
@@ -82,13 +99,16 @@ public:
 
         bsize             = size;
         is_managed_memory = use_alloc_managed() || make_it_shared;
-        free();
         ret = is_managed_memory ? hipMallocManaged(&buf, bsize) : hipMalloc(&buf, bsize);
         if(ret != hipSuccess)
         {
             buf   = nullptr;
             bsize = 0;
         }
+
+        if(dev_prop.integrated)
+            system_memory::singleton().record_used_bytes(bsize);
+
         return ret;
     }
 
@@ -106,6 +126,10 @@ public:
                 // free on the device we allocated on
                 rocfft_scoped_device dev(device);
                 (void)hipFree(buf);
+
+                const auto dev_prop = get_curr_device_prop();
+                if(dev_prop.integrated)
+                    system_memory::singleton().release_used_bytes(bsize);
             }
             buf   = nullptr;
             bsize = 0;
