@@ -705,13 +705,13 @@ namespace rocRoller
                         return std::make_tuple(op.scaleMode(), op.strides());
                     }};
 
-                TensorContraction contraction({1}, {0}, mul.accType);
+                TensorContraction contraction(
+                    mul.freeDimsA, mul.freeDimsB, mul.boundDims, mul.accType);
+
                 std::tie(contraction.scaleModeA, contraction.scaleStridesA)
                     = std::visit(getBlockParams, *aSource);
                 std::tie(contraction.scaleModeB, contraction.scaleStridesB)
                     = std::visit(getBlockParams, *bSource);
-
-                // contraction dims are {1} and {0}, which is matrix multiplication
                 auto TC            = m_graph.control.addElement(NOP{});
                 m_op[mul.getTag()] = TC;
                 m_graph.mapper.connect(TC, D, NaryArgument::DEST);

@@ -11,10 +11,18 @@ namespace rocRoller
 {
     namespace Operations
     {
-        inline T_Mul::T_Mul(OperationTag a, OperationTag b, VariableType accType)
+        inline T_Mul::T_Mul(OperationTag            a,
+                            OperationTag            b,
+                            std::vector<FreeIndex>  freeDimsA,
+                            std::vector<FreeIndex>  freeDimsB,
+                            std::vector<BoundIndex> boundDims,
+                            VariableType            accType)
             : BaseOperation()
             , a(a)
             , b(b)
+            , freeDimsA(freeDimsA)
+            , freeDimsB(freeDimsB)
+            , boundDims(boundDims)
             , accType(accType)
         {
         }

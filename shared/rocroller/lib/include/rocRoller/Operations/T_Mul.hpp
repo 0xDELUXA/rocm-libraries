@@ -11,6 +11,7 @@
 
 #include <rocRoller/DataTypes/DataTypes.hpp>
 #include <rocRoller/Operations/Operation.hpp>
+#include <rocRoller/Operations/TensorIndices.hpp>
 #include <rocRoller/Serialization/Base_fwd.hpp>
 
 namespace rocRoller
@@ -21,13 +22,21 @@ namespace rocRoller
         {
         public:
             T_Mul() = delete;
-            T_Mul(OperationTag a, OperationTag b, VariableType accType = DataType::Float);
+            T_Mul(OperationTag            a,
+                  OperationTag            b,
+                  std::vector<FreeIndex>  freeDimsA,
+                  std::vector<FreeIndex>  freeDimsB,
+                  std::vector<BoundIndex> boundDims,
+                  VariableType            accType = DataType::Float);
 
             std::unordered_set<OperationTag> getInputs() const;
             std::string                      toString() const;
 
-            OperationTag a, b;
-            VariableType accType;
+            OperationTag            a, b;
+            std::vector<FreeIndex>  freeDimsA;
+            std::vector<FreeIndex>  freeDimsB;
+            std::vector<BoundIndex> boundDims;
+            VariableType            accType;
 
             bool operator==(T_Mul const&) const;
 

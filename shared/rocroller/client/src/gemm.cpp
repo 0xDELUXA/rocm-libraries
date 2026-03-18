@@ -135,18 +135,18 @@ namespace rocRoller::Client::GEMMClient
         // Host Data
         std::cout << "Generating input data..." << std::endl;
 
-        TensorDescriptor descA(fromString<DataType>(problemParams.types.typeA),
-                               {static_cast<unsigned long>(problemParams.m),
-                                static_cast<unsigned long>(problemParams.k)},
-                               problemParams.types.transA == TransposeType::T ? "T" : "N");
-        TensorDescriptor descB(fromString<DataType>(problemParams.types.typeB),
-                               {static_cast<unsigned long>(problemParams.k),
-                                static_cast<unsigned long>(problemParams.n)},
-                               problemParams.types.transB == TransposeType::T ? "T" : "N");
+        // Dimensions are ordered fastest-to-slowest
+        std::vector<size_t> aSizes{problemParams.m, problemParams.k};
+        std::vector<size_t> bSizes{problemParams.k, problemParams.n};
+        if(problemParams.types.transA == TransposeType::T)
+            std::swap(aSizes[0], aSizes[1]);
+        if(problemParams.types.transB == TransposeType::T)
+            std::swap(bSizes[0], bSizes[1]);
+
+        TensorDescriptor descA(fromString<DataType>(problemParams.types.typeA), aSizes);
+        TensorDescriptor descB(fromString<DataType>(problemParams.types.typeB), bSizes);
         TensorDescriptor descC(fromString<DataType>(problemParams.types.typeC),
-                               {static_cast<unsigned long>(problemParams.m),
-                                static_cast<unsigned long>(problemParams.n)},
-                               "N");
+                               {problemParams.m, problemParams.n});
 
         using PackedTypeA = typename PackedTypeOf<A>::type;
         using PackedTypeB = typename PackedTypeOf<B>::type;
@@ -254,6 +254,7 @@ namespace rocRoller::Client::GEMMClient
             if((problemParams.types.scaleSkipPermlane != ScaleSkipPermlaneMode::None)
                || (not problemParams.types.scalePretileA.empty()))
             {
+                // TODO: Normalize not needed anymore
                 auto descScaleA = descA.withNormalizedDimensions();
                 {
                     auto sizes = descScaleA.sizes();
@@ -304,6 +305,7 @@ namespace rocRoller::Client::GEMMClient
             if((problemParams.types.scaleSkipPermlane != ScaleSkipPermlaneMode::None)
                || (not problemParams.types.scalePretileB.empty()))
             {
+                // TODO: Normalize not needed anymore
                 auto descScaleB = descB.withNormalizedDimensions();
                 {
                     auto sizes = descScaleB.sizes();
@@ -386,17 +388,17 @@ namespace rocRoller::Client::GEMMClient
                 auto const tileK = problemParams.types.scalePretileA[1];
 
                 descAScale = TensorDescriptor(problemParams.types.scaleTypeA,
-                                              {M, K},
-                                              {static_cast<size_t>((K / tileK) * tileM * tileK),
-                                               static_cast<size_t>(tileM * tileK)});
+                                              {K, M},
+                                              {tileM * tileK, (K / tileK) * tileM * tileK});
             }
             else
             {
-                descAScale = TensorDescriptor(
-                    problemParams.types.scaleTypeA,
-                    {static_cast<size_t>(problemParams.m),
-                     static_cast<size_t>(problemParams.k / problemParams.types.scaleBlockSize)},
-                    problemParams.types.transA == TransposeType::T ? "T" : "N");
+                std::vector<size_t> sizes{problemParams.m,
+                                          problemParams.k / problemParams.types.scaleBlockSize};
+                if(problemParams.types.transA == TransposeType::T)
+                    std::swap(sizes[0], sizes[1]);
+
+                descAScale = TensorDescriptor(problemParams.types.scaleTypeA, sizes);
             }
             auto [aScaleTag, bScaleTag] = gemm->getABScaleTags();
             setCommandTensorArg(commandArgs, aScaleTag.value(), descAScale, deviceScaleA.get());
@@ -438,16 +440,16 @@ namespace rocRoller::Client::GEMMClient
 
                 descBScale = TensorDescriptor(problemParams.types.scaleTypeB,
                                               {K, N},
-                                              {static_cast<size_t>(tileK * tileN),
-                                               static_cast<size_t>((K / tileK) * tileK * tileN)});
+                                              {tileK * tileN, (K / tileK) * tileK * tileN});
             }
             else
             {
-                descBScale = TensorDescriptor(
-                    problemParams.types.scaleTypeB,
-                    {static_cast<size_t>(problemParams.k / problemParams.types.scaleBlockSize),
-                     static_cast<size_t>(problemParams.n)},
-                    problemParams.types.transB == TransposeType::T ? "T" : "N");
+                std::vector<size_t> sizes{problemParams.k / problemParams.types.scaleBlockSize,
+                                          problemParams.n};
+                if(problemParams.types.transB == TransposeType::T)
+                    std::swap(sizes[0], sizes[1]);
+
+                descBScale = TensorDescriptor(problemParams.types.scaleTypeB, sizes);
             }
             auto [aScaleTag, bScaleTag] = gemm->getABScaleTags();
             setCommandTensorArg(commandArgs, bScaleTag.value(), descBScale, deviceScaleB.get());

@@ -229,6 +229,48 @@ namespace rocRoller
         };
 
         template <typename IO, typename Context>
+        struct MappingTraits<Operations::FreeIndex, IO, Context>
+        {
+            using iot = IOTraits<IO>;
+
+            static void mapping(IO& io, Operations::FreeIndex& idx, Context& ctx)
+            {
+                iot::mapRequired(io, "ab", idx.ab);
+                iot::mapRequired(io, "d", idx.d);
+            }
+
+            static void mapping(IO& io, Operations::FreeIndex& idx)
+            {
+                AssertFatal((std::same_as<EmptyContext, Context>));
+                Context ctx;
+                mapping(io, idx, ctx);
+            }
+
+            static const bool flow = true;
+        };
+
+        template <typename IO, typename Context>
+        struct MappingTraits<Operations::BoundIndex, IO, Context>
+        {
+            using iot = IOTraits<IO>;
+
+            static void mapping(IO& io, Operations::BoundIndex& idx, Context& ctx)
+            {
+                iot::mapRequired(io, "a", idx.a);
+                iot::mapRequired(io, "b", idx.b);
+            }
+
+            static void mapping(IO& io, Operations::BoundIndex& idx)
+            {
+                AssertFatal((std::same_as<EmptyContext, Context>));
+                Context ctx;
+                mapping(io, idx, ctx);
+            }
+
+            static const bool flow = true;
+        };
+
+        template <typename IO, typename Context>
         struct MappingTraits<Operations::T_Mul, IO, Context>
         {
             using TOp = Operations::T_Mul;
@@ -239,6 +281,10 @@ namespace rocRoller
                 iot::mapRequired(io, "tag", op.m_tag);
                 iot::mapRequired(io, "a", op.a);
                 iot::mapRequired(io, "b", op.b);
+                iot::mapRequired(io, "freeDimsA", op.freeDimsA);
+                iot::mapRequired(io, "freeDimsB", op.freeDimsB);
+                iot::mapRequired(io, "boundDims", op.boundDims);
+                iot::mapRequired(io, "accType", op.accType);
             }
 
             static void mapping(IO& io, TOp& val)
@@ -487,8 +533,8 @@ namespace rocRoller
         {
             static Operations::Operation call()
             {
-                return Operations::T_Mul(Operations::OperationTag(-1),
-                                         Operations::OperationTag(-1));
+                return Operations::T_Mul(
+                    Operations::OperationTag(-1), Operations::OperationTag(-1), {}, {}, {});
             }
         };
 

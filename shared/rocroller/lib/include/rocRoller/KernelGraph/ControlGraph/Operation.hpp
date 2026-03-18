@@ -16,6 +16,7 @@
 #include <rocRoller/KernelGraph/RegisterTagManager.hpp>
 #include <rocRoller/KernelGraph/StructUtils.hpp>
 #include <rocRoller/Operations/BlockScale_fwd.hpp>
+#include <rocRoller/Operations/TensorIndices.hpp>
 #include <rocRoller/Utilities/Utils.hpp>
 
 namespace rocRoller
@@ -392,11 +393,15 @@ namespace rocRoller
         struct TensorContraction
         {
             TensorContraction();
-            TensorContraction(std::vector<int> const& aContractedDimensions,
-                              std::vector<int> const& bContractedDimensions,
-                              VariableType const      accType = DataType::Float);
+            TensorContraction(std::vector<Operations::FreeIndex> const&  freeDimsA,
+                              std::vector<Operations::FreeIndex> const&  freeDimsB,
+                              std::vector<Operations::BoundIndex> const& boundDims,
+                              VariableType const                         accType = DataType::Float);
 
-            std::vector<int>      aDims, bDims; // contracted dimensions
+            std::vector<Operations::FreeIndex>  freeDimsA;
+            std::vector<Operations::FreeIndex>  freeDimsB;
+            std::vector<Operations::BoundIndex> boundDims;
+
             Operations::ScaleMode scaleModeA = Operations::ScaleMode::None;
             Operations::ScaleMode scaleModeB = Operations::ScaleMode::None;
             std::vector<size_t>   scaleStridesA;

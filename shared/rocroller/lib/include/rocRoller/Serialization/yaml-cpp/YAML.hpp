@@ -8,6 +8,7 @@
 #include <rocRoller/Serialization/Containers.hpp>
 #include <rocRoller/Serialization/HasTraits.hpp>
 
+#include <rocRoller/Operations/TensorIndices.hpp>
 #include <rocRoller/Utilities/Error.hpp>
 
 #include <yaml-cpp/yaml.h>
@@ -575,6 +576,69 @@ namespace YAML
         }
     };
 
-} // namespace YAML
+    template <>
+    struct convert<rocRoller::Operations::FreeIndex>
+    {
+        static Node encode(const rocRoller::Operations::FreeIndex& rhs)
+        {
+            Node node;
+            node["ab"] = rhs.ab;
+            node["d"]  = rhs.d;
+            node.SetStyle(YAML::EmitterStyle::Flow);
+            return node;
+        }
+
+        static bool decode(const Node& node, rocRoller::Operations::FreeIndex& rhs)
+        {
+            if(!node.IsMap())
+            {
+                return false;
+            }
+
+            rhs.ab = node["ab"].as<size_t>();
+            rhs.d  = node["d"].as<size_t>();
+            return true;
+        }
+    };
+
+    template <>
+    struct convert<rocRoller::Operations::BoundIndex>
+    {
+        static Node encode(const rocRoller::Operations::BoundIndex& rhs)
+        {
+            Node node;
+            node["a"] = rhs.a;
+            node["b"] = rhs.b;
+            node.SetStyle(YAML::EmitterStyle::Flow);
+            return node;
+        }
+
+        static bool decode(const Node& node, rocRoller::Operations::BoundIndex& rhs)
+        {
+            if(!node.IsMap())
+            {
+                return false;
+            }
+
+            rhs.a = node["a"].as<size_t>();
+            rhs.b = node["b"].as<size_t>();
+            return true;
+        }
+    };
+
+    inline Emitter& operator<<(Emitter& emitter, const rocRoller::Operations::FreeIndex& idx)
+    {
+        emitter << Flow << BeginMap << Key << "ab" << Value << idx.ab << Key << "d" << Value
+                << idx.d << EndMap;
+        return emitter;
+    }
+
+    inline Emitter& operator<<(Emitter& emitter, const rocRoller::Operations::BoundIndex& idx)
+    {
+        emitter << Flow << BeginMap << Key << "a" << Value << idx.a << Key << "b" << Value << idx.b
+                << EndMap;
+        return emitter;
+    }
+}
 
 #endif

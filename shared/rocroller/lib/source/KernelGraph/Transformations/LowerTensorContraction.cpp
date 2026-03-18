@@ -784,8 +784,12 @@ namespace rocRoller
             auto [aTag, aMac] = kgraph.getDimension<MacroTile>(tag, NaryArgument::LHS);
             auto [bTag, bMac] = kgraph.getDimension<MacroTile>(tag, NaryArgument::RHS);
             auto [dTag, dMac] = kgraph.getDimension<MacroTile>(tag, NaryArgument::DEST);
-            if(aMac.rank == 2 && bMac.rank == 2 && op.aDims == std::vector<int>{1}
-               && op.bDims == std::vector<int>{0})
+
+            // Check if this is a standard matrix multiply: A[M,K] * B[K,N] -> D[M,N]
+            bool isMatrixMultiply = aMac.rank == 2 && bMac.rank == 2 && op.boundDims.size() == 1
+                                    && op.freeDimsA.size() == 1 && op.freeDimsB.size() == 1;
+
+            if(isMatrixMultiply)
             {
                 lowerMatrixMultiply(kgraph, tag, aTag, bTag, dTag, m_params, m_context);
             }

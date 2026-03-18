@@ -159,17 +159,14 @@ namespace rocRoller
 
                 AssertFatal(aTileDims.size() == bTileDims.size());
 
-                AssertFatal(op.aDims.size() == op.bDims.size(),
-                            ShowValue(op.aDims.size()),
-                            ShowValue(op.bDims.size()));
-
                 std::set<int> remainingADims(aTileDims.begin(), aTileDims.end());
                 std::set<int> remainingBDims(bTileDims.begin(), bTileDims.end());
 
-                for(size_t i = 0; i < op.aDims.size(); i++)
+                // Iterate through bound (contracted) dimensions
+                for(auto const& bound : op.boundDims)
                 {
-                    auto aDim = aTileDims.at(op.aDims.at(i));
-                    auto bDim = bTileDims.at(op.bDims.at(i));
+                    auto aDim = aTileDims.at(bound.a);
+                    auto bDim = bTileDims.at(bound.b);
 
                     redundantArgs.push_back({aDim, bDim});
                     remainingADims.erase(aDim);
