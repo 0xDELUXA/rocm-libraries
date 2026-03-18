@@ -806,8 +806,9 @@ namespace MatrixMultiplyTest
         auto dataTypeA = TypeInfo<TA>::Var.dataType;
         auto dataTypeB = TypeInfo<TB>::Var.dataType;
 
-        TensorDescriptor descA(dataTypeA, {M, K}, "T");
-        TensorDescriptor descB(dataTypeB, {K, N}, "T");
+        // Transposed: swap dimensions so fastest stride is first
+        TensorDescriptor descA(dataTypeA, {size_t(K), size_t(M)});
+        TensorDescriptor descB(dataTypeB, {size_t(N), size_t(K)});
 
         auto A     = DGenVector<TA>(descA, -1.0, 1.0, 9861u);
         auto B     = DGenVector<TB>(descB, -1.0, 1.0, 9861u);

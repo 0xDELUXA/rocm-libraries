@@ -270,7 +270,8 @@ TEST_F(CommandTest, GPU_TensorDescriptor)
 
     auto tagTensor = command->addOperation(rocRoller::Operations::Tensor(2, DataType::Float));
 
-    TensorDescriptor desc(DataType::Float, {512u, 1024u}, "T");
+    // Transposed: swap dimensions so fastest stride is first
+    TensorDescriptor desc(DataType::Float, {1024u, 512u});
 
     CommandArguments commandArgs = command->createArguments();
     auto             device      = make_shared_device<float>(512u * 1024u);

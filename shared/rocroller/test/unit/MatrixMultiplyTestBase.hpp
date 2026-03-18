@@ -190,16 +190,15 @@ namespace MatrixMultiplyTest
             auto NY = std::make_shared<Expression::Expression>(workgroup_size_y);
             auto NZ = std::make_shared<Expression::Expression>(1u);
 
-            std::vector<size_t> unitStridesN = {1, 0};
-            std::vector<size_t> unitStridesT = {0, 1};
+            std::vector<size_t> unitStrides = {1, 0};
 
             auto command    = std::make_shared<Command>();
-            auto tagTensorA = command->addOperation(rocRoller::Operations::Tensor(
-                2, dataTypeA, {}, transA == "N" ? unitStridesN : unitStridesT));
+            auto tagTensorA = command->addOperation(
+                rocRoller::Operations::Tensor(2, dataTypeA, {}, unitStrides));
             auto tagLoadA = command->addOperation(rocRoller::Operations::T_Load_Tiled(tagTensorA));
 
-            auto tagTensorB = command->addOperation(rocRoller::Operations::Tensor(
-                2, dataTypeB, {}, transB == "N" ? unitStridesN : unitStridesT));
+            auto tagTensorB = command->addOperation(
+                rocRoller::Operations::Tensor(2, dataTypeB, {}, unitStrides));
             auto tagLoadB = command->addOperation(rocRoller::Operations::T_Load_Tiled(tagTensorB));
 
             std::optional<rocRoller::Operations::OperationTag> tagTensorScaleA, tagLoadScaleA,
@@ -207,16 +206,16 @@ namespace MatrixMultiplyTest
 
             if(scaleA)
             {
-                tagTensorScaleA = command->addOperation(rocRoller::Operations::Tensor(
-                    2, scaleTypeA, {}, transA == "N" ? unitStridesN : unitStridesT));
+                tagTensorScaleA = command->addOperation(
+                    rocRoller::Operations::Tensor(2, scaleTypeA, {}, unitStrides));
                 tagLoadScaleA
                     = command->addOperation(rocRoller::Operations::T_Load_Tiled(*tagTensorScaleA));
             }
 
             if(scaleB)
             {
-                tagTensorScaleB = command->addOperation(rocRoller::Operations::Tensor(
-                    2, scaleTypeB, {}, transB == "N" ? unitStridesN : unitStridesT));
+                tagTensorScaleB = command->addOperation(
+                    rocRoller::Operations::Tensor(2, scaleTypeB, {}, unitStrides));
                 tagLoadScaleB
                     = command->addOperation(rocRoller::Operations::T_Load_Tiled(*tagTensorScaleB));
             }
@@ -335,9 +334,16 @@ namespace MatrixMultiplyTest
 
             if(isLocalDevice())
             {
-                TensorDescriptor descA(dataTypeA, {M, K}, transA);
-                TensorDescriptor descB(dataTypeB, {K, N}, transB);
-                TensorDescriptor descD(dataTypeD, {M, N}, {1u, M});
+                std::vector<size_t> aSizes = {M, K};
+                std::vector<size_t> bSizes = {K, N};
+                if(transA == "T")
+                    std::swap(aSizes[0], aSizes[1]);
+                if(transB == "T")
+                    std::swap(bSizes[0], bSizes[1]);
+
+                TensorDescriptor descA(dataTypeA, aSizes);
+                TensorDescriptor descB(dataTypeB, bSizes);
+                TensorDescriptor descD(dataTypeD, {M, N});
 
                 float rangeA = range<TA>();
                 float rangeB = range<TB>();
@@ -385,7 +391,12 @@ namespace MatrixMultiplyTest
                                 fmt::format("K: {} must be a multiple of the scale block size: {}",
                                             K,
                                             scaleBlockSize));
-                    TensorDescriptor descScaleA(dataTypeA, {M, K / scaleBlockSize}, transA);
+
+                    std::vector<size_t> aScaleSizes = std::vector<size_t>{M, K / scaleBlockSize};
+                    if(transA == "T")
+                        std::swap(aScaleSizes[0], aScaleSizes[1]);
+
+                    TensorDescriptor descScaleA(dataTypeA, aScaleSizes);
                     setCommandTensorArg(
                         commandArgs, tagTensorScaleA.value(), descScaleA, d_scaleA.get());
                 }
@@ -395,7 +406,11 @@ namespace MatrixMultiplyTest
                                 fmt::format("K: {} must be a multiple of the scale block size: {}",
                                             K,
                                             scaleBlockSize));
-                    TensorDescriptor descScaleB(dataTypeB, {K / scaleBlockSize, N}, transB);
+                    std::vector<size_t> bScaleSizes = std::vector<size_t>{K / scaleBlockSize, N};
+                    if(transB == "T")
+                        std::swap(bScaleSizes[0], bScaleSizes[1]);
+
+                    TensorDescriptor descScaleB(dataTypeB, bScaleSizes);
                     setCommandTensorArg(
                         commandArgs, tagTensorScaleB.value(), descScaleB, d_scaleB.get());
                 }
@@ -523,9 +538,9 @@ namespace MatrixMultiplyTest
                               bool transB = false)
         {
             // matrix size: A is MxK; B is KxN; D is MxN
-            int const M = 1024;
-            int const N = 1024;
-            int const K = 512;
+            size_t const M = 1024;
+            size_t const N = 1024;
+            size_t const K = 512;
 
             REQUIRE_ANY_OF_ARCH_CAP(GPUCapability::HasMFMA, GPUCapability::HasWMMA);
             if constexpr(isF8<TA> || isF8<TB>)
@@ -570,9 +585,16 @@ namespace MatrixMultiplyTest
             auto NY = std::make_shared<Expression::Expression>(num_workgroup_y * workgroup_size_y);
             auto NZ = std::make_shared<Expression::Expression>(1u);
 
-            TensorDescriptor descA(dataTypeA, {M, K}, transA ? "T" : "N");
-            TensorDescriptor descB(dataTypeB, {K, N}, transB ? "T" : "N");
-            TensorDescriptor descD(dataTypeD, {M, N}, {1u, M});
+            std::vector<size_t> aSizes = {M, K};
+            std::vector<size_t> bSizes = {K, N};
+            if(transA)
+                std::swap(aSizes[0], aSizes[1]);
+            if(transB)
+                std::swap(bSizes[0], bSizes[1]);
+
+            TensorDescriptor descA(dataTypeA, aSizes);
+            TensorDescriptor descB(dataTypeB, bSizes);
+            TensorDescriptor descD(dataTypeD, {M, N});
 
             auto seed = 9861u;
             auto A    = DGenVector<TA>(descA, -1.f, 1.f, seed + 1);
@@ -713,10 +735,10 @@ namespace MatrixMultiplyTest
             auto dataType    = TypeInfo<T>::Var.dataType;
             auto dataTypeAcc = TypeInfo<ACC>::Var.dataType;
 
-            TensorDescriptor descA(dataType, {M, K}, {1u, M});
-            TensorDescriptor descB(dataType, {K, N}, {1u, K});
-            TensorDescriptor descC(dataType, {M, N}, {1u, M});
-            TensorDescriptor descD(dataType, {M, N}, {1u, M});
+            TensorDescriptor descA(dataType, {M, K});
+            TensorDescriptor descB(dataType, {K, N});
+            TensorDescriptor descC(dataType, {M, N});
+            TensorDescriptor descD(dataType, {M, N});
 
             auto seed = 9861u;
 

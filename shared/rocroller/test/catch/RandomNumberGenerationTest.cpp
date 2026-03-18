@@ -411,12 +411,14 @@ namespace RandomNumberGenerationTest
 
             std::vector<uint32_t> A(nx * ny, 0u);
             auto                  d_A = make_shared_device(A);
-            TensorDescriptor      descA(DataType::UInt32, {nx, ny}, {ny, 1});
+            // Dimensions ordered fastest to slowest: ny (stride 1) then nx (stride ny)
+            TensorDescriptor descA(DataType::UInt32, {ny, nx}, {1, ny});
             setCommandTensorArg(commandArgs, tagA, descA, d_A.get());
 
             std::vector<uint32_t> output(nx * ny, 0u);
             auto                  d_output = make_shared_device(output);
-            TensorDescriptor      descOutput(DataType::UInt32, {nx, ny}, {ny, 1});
+            // Dimensions ordered fastest to slowest: ny (stride 1) then nx (stride ny)
+            TensorDescriptor descOutput(DataType::UInt32, {ny, nx}, {1, ny});
             setCommandTensorArg(commandArgs, outputTag, descOutput, d_output.get());
 
             commandKernel.launchKernel(commandArgs.runtimeArguments());

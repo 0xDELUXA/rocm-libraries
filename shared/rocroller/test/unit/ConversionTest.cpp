@@ -175,10 +175,10 @@ namespace rocRollerTest
 
         CommandArguments commandArgs = command->createArguments();
 
-        TensorDescriptor descA(dataTypeAB, {size_t(M), size_t(K)}, "N");
-        TensorDescriptor descB(dataTypeAB, {size_t(K), size_t(N)}, "N");
-        TensorDescriptor descC(dataTypeC, {size_t(M), size_t(N)}, "N");
-        TensorDescriptor descD(dataTypeD, {size_t(M), size_t(N)}, "N");
+        TensorDescriptor descA(dataTypeAB, {size_t(M), size_t(K)});
+        TensorDescriptor descB(dataTypeAB, {size_t(K), size_t(N)});
+        TensorDescriptor descC(dataTypeC, {size_t(M), size_t(N)});
+        TensorDescriptor descD(dataTypeD, {size_t(M), size_t(N)});
 
         setCommandTensorArg(commandArgs, tagTensorA, descA, d_A.get());
         setCommandTensorArg(commandArgs, tagTensorB, descB, d_B.get());
@@ -300,9 +300,9 @@ namespace rocRollerTest
 
         CommandArguments commandArgs = command->createArguments();
 
-        TensorDescriptor descA(dataTypeAB, {size_t(M), size_t(K)}, "N");
-        TensorDescriptor descB(dataTypeAB, {size_t(K), size_t(N)}, "N");
-        TensorDescriptor descD(dataTypeD, {size_t(M), size_t(N)}, "N");
+        TensorDescriptor descA(dataTypeAB, {size_t(M), size_t(K)});
+        TensorDescriptor descB(dataTypeAB, {size_t(K), size_t(N)});
+        TensorDescriptor descD(dataTypeD, {size_t(M), size_t(N)});
 
         setCommandTensorArg(commandArgs, tagTensorA, descA, d_A.get());
         setCommandTensorArg(commandArgs, tagTensorB, descB, d_B.get());
@@ -384,9 +384,10 @@ namespace rocRollerTest
         auto d_b = make_shared_device(b);
         auto d_c = make_shared_device<DestType>(a.size());
 
-        TensorDescriptor descA(srcDataType, {size_t(cs.nx), size_t(cs.ny)}, "T");
-        TensorDescriptor descB(srcDataType, {size_t(cs.nx), size_t(cs.ny)}, "T");
-        TensorDescriptor descC(destDataType, {size_t(cs.nx), size_t(cs.ny)}, "T");
+        // Transposed: swap dimensions so fastest stride is first
+        TensorDescriptor descA(srcDataType, {size_t(cs.ny), size_t(cs.nx)});
+        TensorDescriptor descB(srcDataType, {size_t(cs.ny), size_t(cs.nx)});
+        TensorDescriptor descC(destDataType, {size_t(cs.ny), size_t(cs.nx)});
 
         setCommandTensorArg(commandArgs, tagTensorA, descA, d_a.get());
         setCommandTensorArg(commandArgs, tagTensorB, descB, d_b.get());
@@ -487,12 +488,14 @@ namespace rocRollerTest
 
         CommandArguments commandArgs = command->createArguments();
 
-        auto             d_a = make_shared_device(srcData);
-        TensorDescriptor descA(srcDataType, {size_t(cs.nx), size_t(cs.ny)}, "T");
+        auto d_a = make_shared_device(srcData);
+        // Transposed: swap dimensions so fastest stride is first
+        TensorDescriptor descA(srcDataType, {size_t(cs.ny), size_t(cs.nx)});
         setCommandTensorArg(commandArgs, tagTensorA, descA, d_a.get());
 
-        auto             d_c = make_shared_device<DestType>(srcData.size());
-        TensorDescriptor descC(destDataType, {size_t(cs.nx), size_t(cs.ny)}, "T");
+        auto d_c = make_shared_device<DestType>(srcData.size());
+        // Transposed: swap dimensions so fastest stride is first
+        TensorDescriptor descC(destDataType, {size_t(cs.ny), size_t(cs.nx)});
         setCommandTensorArg(commandArgs, tagTensorC, descC, d_c.get());
 
         if(seed.has_value())

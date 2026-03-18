@@ -116,10 +116,17 @@ namespace GEMMDriverTest
 
             auto dataType = TypeInfo<T>::Var.dataType;
 
-            TensorDescriptor descA(dataType, {size_t(M), size_t(K)}, gemm.transA);
-            TensorDescriptor descB(dataType, {size_t(K), size_t(N)}, gemm.transB);
-            TensorDescriptor descC(dataType, {size_t(M), size_t(N)}, "N");
-            TensorDescriptor descRelu(dataType, {size_t(M), size_t(N)}, "N");
+            std::vector<size_t> aSizes{size_t(M), size_t(K)};
+            std::vector<size_t> bSizes{size_t(K), size_t(N)};
+            if(gemm.transA == "T")
+                std::swap(aSizes[0], aSizes[1]);
+            if(gemm.transB == "T")
+                std::swap(bSizes[0], bSizes[1]);
+
+            TensorDescriptor descA(dataType, aSizes);
+            TensorDescriptor descB(dataType, bSizes);
+            TensorDescriptor descC(dataType, {size_t(M), size_t(N)});
+            TensorDescriptor descRelu(dataType, {size_t(M), size_t(N)});
 
             auto seed = 31415u;
             DGenInput(seed, hostA, descA, hostB, descB, hostC, descC);

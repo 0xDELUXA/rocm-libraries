@@ -243,10 +243,17 @@ namespace rocRollerTest
 
                 std::vector<uint8_t> hostScaleA, hostScaleB;
 
-                TensorDescriptor descA(dataTypeA, {size_t(M), size_t(K)}, m_problem.transA);
-                TensorDescriptor descB(dataTypeB, {size_t(K), size_t(N)}, m_problem.transB);
-                TensorDescriptor descC(dataTypeD, {size_t(M), size_t(N)}, "N");
-                TensorDescriptor descD(dataTypeD, {size_t(M), size_t(N)}, "N");
+                std::vector<size_t> aSizes{size_t(M), size_t(K)};
+                std::vector<size_t> bSizes{size_t(K), size_t(N)};
+                if(m_problem.transA == "T")
+                    std::swap(aSizes[0], aSizes[1]);
+                if(m_problem.transB == "T")
+                    std::swap(bSizes[0], bSizes[1]);
+
+                TensorDescriptor descA(dataTypeA, aSizes);
+                TensorDescriptor descB(dataTypeB, bSizes);
+                TensorDescriptor descC(dataTypeD, {size_t(M), size_t(N)});
+                TensorDescriptor descD(dataTypeD, {size_t(M), size_t(N)});
 
                 auto seed = 31415u;
                 if(m_problem.scaleAMode == Operations::ScaleMode::Separate

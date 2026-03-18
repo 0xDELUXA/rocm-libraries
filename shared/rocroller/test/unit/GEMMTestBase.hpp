@@ -210,10 +210,17 @@ namespace GEMMTests
 
             std::vector<uint8_t> hostScaleA, hostScaleB;
 
-            TensorDescriptor descA(dataTypeA, {size_t(M), size_t(K)}, gemm.transA);
-            TensorDescriptor descB(dataTypeB, {size_t(K), size_t(N)}, gemm.transB);
-            TensorDescriptor descC(dataTypeD, {size_t(M), size_t(N)}, "N");
-            TensorDescriptor descD(dataTypeD, {size_t(M), size_t(N)}, "N");
+            std::vector<size_t> aSizes{size_t(M), size_t(K)};
+            std::vector<size_t> bSizes{size_t(K), size_t(N)};
+            if(gemm.transA == "T")
+                std::swap(aSizes[0], aSizes[1]);
+            if(gemm.transB == "T")
+                std::swap(bSizes[0], bSizes[1]);
+
+            TensorDescriptor descA(dataTypeA, aSizes);
+            TensorDescriptor descB(dataTypeB, bSizes);
+            TensorDescriptor descC(dataTypeD, {size_t(M), size_t(N)});
+            TensorDescriptor descD(dataTypeD, {size_t(M), size_t(N)});
 
             auto seed = 31415u;
             if(gemm.scaleAMode == Operations::ScaleMode::Separate
@@ -795,16 +802,17 @@ namespace GEMMTests
                     auto const tileK   = gemm.scalePretileA[1];
                     descAScale         = TensorDescriptor(
                         gemm.scaleTypeA,
-                        {static_cast<size_t>(M_scale), static_cast<size_t>(K_scale)},
-                        {static_cast<size_t>((K_scale / tileK) * tileM * tileK),
-                         static_cast<size_t>(tileM * tileK)});
+                        {static_cast<size_t>(K_scale), static_cast<size_t>(M_scale)},
+                        {static_cast<size_t>(tileM * tileK),
+                         static_cast<size_t>((K_scale / tileK) * tileM * tileK)});
                 }
                 else
                 {
-                    descAScale = TensorDescriptor(
-                        gemm.scaleTypeA,
-                        {static_cast<size_t>(M), size_t(K / gemm.scaleBlockSize)},
-                        gemm.transA);
+                    std::vector<size_t> scaleSizes{static_cast<size_t>(M),
+                                                   size_t(K / gemm.scaleBlockSize)};
+                    if(gemm.transA == "T")
+                        std::swap(scaleSizes[0], scaleSizes[1]);
+                    descAScale = TensorDescriptor(gemm.scaleTypeA, scaleSizes);
                 }
                 setCommandTensorArg(
                     commandArgs, tagTensorScaleA.value(), descAScale, deviceScaleA.get());
@@ -835,10 +843,11 @@ namespace GEMMTests
                 }
                 else
                 {
-                    descBScale = TensorDescriptor(
-                        gemm.scaleTypeB,
-                        {size_t(K / gemm.scaleBlockSize), static_cast<size_t>(N)},
-                        gemm.transB);
+                    std::vector<size_t> scaleSizes{size_t(K / gemm.scaleBlockSize),
+                                                   static_cast<size_t>(N)};
+                    if(gemm.transB == "T")
+                        std::swap(scaleSizes[0], scaleSizes[1]);
+                    descBScale = TensorDescriptor(gemm.scaleTypeB, scaleSizes);
                 }
                 setCommandTensorArg(
                     commandArgs, tagTensorScaleB.value(), descBScale, deviceScaleB.get());

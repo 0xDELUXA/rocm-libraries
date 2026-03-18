@@ -144,26 +144,6 @@ namespace rocRoller
         this->calculate();
     }
 
-    // Specialized constructor for 2-D tensor (i.e., matrix)
-    inline TensorDescriptor::TensorDescriptor(DataType              t,
-                                              std::array<size_t, 2> sizes,
-                                              std::string const&    transpose,
-                                              size_t                offset)
-        : m_sizes(sizes.begin(), sizes.end())
-        , m_dataType(t)
-        , m_offset(offset)
-    {
-        if(transpose == "T")
-        {
-            m_strides = {m_sizes[1], 1u};
-        }
-        else
-        {
-            m_strides = {1u, m_sizes[0]};
-        }
-        this->calculate();
-    }
-
     inline TensorDescriptor TensorDescriptor::ShuffledNoPadding(DataType            t,
                                                                 std::vector<size_t> sizes,
                                                                 std::vector<size_t> dimOrder)

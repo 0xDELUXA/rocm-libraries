@@ -559,9 +559,10 @@ namespace rocRollerTest
 
         CommandArguments commandArgs = command->createArguments();
 
-        TensorDescriptor descA(dataType, {size_t(nx), size_t(ny)}, "T");
-        TensorDescriptor descB(dataType, {size_t(nx), size_t(ny)}, "T");
-        TensorDescriptor descC(dataType, {size_t(nx), size_t(ny)}, "T");
+        // Transposed: swap dimensions so fastest stride is first
+        TensorDescriptor descA(dataType, {size_t(ny), size_t(nx)});
+        TensorDescriptor descB(dataType, {size_t(ny), size_t(nx)});
+        TensorDescriptor descC(dataType, {size_t(ny), size_t(nx)});
 
         setCommandTensorArg(commandArgs, tagTensorA, descA, d_a.get());
         setCommandTensorArg(commandArgs, tagTensorB, descB, d_b.get());

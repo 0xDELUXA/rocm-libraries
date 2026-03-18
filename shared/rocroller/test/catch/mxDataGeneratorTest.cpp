@@ -30,8 +30,9 @@ namespace mxDataGeneratorTest
         {
             using DGenDT = typename rrDT2DGenDT<rrDT>::type;
 
-            auto             dataType = TypeInfo<rrDT>::Var.dataType;
-            TensorDescriptor desc(dataType, {dim1, dim2}, "T");
+            auto dataType = TypeInfo<rrDT>::Var.dataType;
+            // Transposed: swap dimensions so fastest stride is first
+            TensorDescriptor desc(dataType, {dim2, dim1});
 
             uint32_t seed = 9861u;
 
@@ -94,8 +95,9 @@ namespace mxDataGeneratorTest
             using rrDT   = TestType;
             using DGenDT = typename rrDT2DGenDT<rrDT>::type;
 
-            auto             dataType = TypeInfo<rrDT>::Var.dataType;
-            TensorDescriptor desc(dataType, {dim1, dim2}, "T");
+            auto dataType = TypeInfo<rrDT>::Var.dataType;
+            // Transposed: swap dimensions so fastest stride is first
+            TensorDescriptor desc(dataType, {dim2, dim1});
 
             std::vector<uint32_t> shuffledSeeds = {9861u, 12345u};
             std::shuffle(shuffledSeeds.begin(), shuffledSeeds.end(), std::default_random_engine{});
