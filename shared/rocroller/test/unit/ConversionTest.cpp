@@ -153,8 +153,13 @@ namespace rocRollerTest
         auto tagTensorC = command->addOperation(rocRoller::Operations::Tensor(2, dataTypeC)); // C
         auto tagLoadC   = command->addOperation(rocRoller::Operations::T_Load_Tiled(tagTensorC));
 
-        auto tagAB
-            = command->addOperation(rocRoller::Operations::T_Mul(tagLoadA, tagLoadB)); // A * B
+        // Create standard matrix multiply: A[M,K] * B[K,N] -> D[M,N]
+        rocRoller::Operations::FreeIndex  freeDimsA{0, 0}; // A's free dim 0 -> D's dim 0
+        rocRoller::Operations::FreeIndex  freeDimsB{1, 1}; // B's free dim 1 -> D's dim 1
+        rocRoller::Operations::BoundIndex boundDims{1, 0}; // Contract A's dim 1 with B's dim 0
+
+        auto tagAB = command->addOperation(rocRoller::Operations::T_Mul(
+            tagLoadA, tagLoadB, {freeDimsA}, {freeDimsB}, {boundDims})); // A * B
 
         auto execute = rocRoller::Operations::T_Execute(command->getNextTag());
         auto tagAdd  = execute.addXOp(rocRoller::Operations::E_Add(tagAB, tagLoadC)); //  A * B + C
@@ -277,8 +282,13 @@ namespace rocRollerTest
         auto tagTensorB = command->addOperation(rocRoller::Operations::Tensor(2, dataTypeAB)); // B
         auto tagLoadB   = command->addOperation(rocRoller::Operations::T_Load_Tiled(tagTensorB));
 
-        auto tagAB
-            = command->addOperation(rocRoller::Operations::T_Mul(tagLoadA, tagLoadB)); // A * B
+        // Create standard matrix multiply: A[M,K] * B[K,N] -> D[M,N]
+        rocRoller::Operations::FreeIndex  freeDimsA{0, 0}; // A's free dim 0 -> D's dim 0
+        rocRoller::Operations::FreeIndex  freeDimsB{1, 1}; // B's free dim 1 -> D's dim 1
+        rocRoller::Operations::BoundIndex boundDims{1, 0}; // Contract A's dim 1 with B's dim 0
+
+        auto tagAB = command->addOperation(rocRoller::Operations::T_Mul(
+            tagLoadA, tagLoadB, {freeDimsA}, {freeDimsB}, {boundDims})); // A * B
 
         auto cvtOp  = rocRoller::Operations::T_Execute(command->getNextTag()); // Convert(A * B)
         auto tagCvt = cvtOp.addXOp(rocRoller::Operations::E_Cvt(tagAB, dataTypeD));

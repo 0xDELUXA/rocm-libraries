@@ -176,8 +176,18 @@ namespace GEMMDriverTest
             auto tagLiteralZero
                 = command->addOperation(rocRoller::Operations::Literal(0.0f)); // zero
 
-            auto tagAB
-                = command->addOperation(rocRoller::Operations::T_Mul(tagLoadA, tagLoadB)); // A * B
+            // Create standard matrix multiply: A[M,K] * B[K,N] -> D[M,N]
+            rocRoller::Operations::FreeIndex  freeDimsA{0, 0}; // A's free dim 0 -> D's dim 0
+            rocRoller::Operations::FreeIndex  freeDimsB{1, 1}; // B's free dim 1 -> D's dim 1
+            rocRoller::Operations::BoundIndex boundDims{1, 0}; // Contract A's dim 1 with B's dim 0
+
+            if(gemm.transA == "T")
+                std::swap(freeDimsA.ab, boundDims.a);
+            if(gemm.transB == "T")
+                std::swap(freeDimsB.ab, boundDims.b);
+
+            auto tagAB = command->addOperation(rocRoller::Operations::T_Mul(
+                tagLoadA, tagLoadB, {freeDimsA}, {freeDimsB}, {boundDims})); // A * B
 
             rocRoller::Operations::T_Execute execute(command->getNextTag());
             auto                             tagBetaC

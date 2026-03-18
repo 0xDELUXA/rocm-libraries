@@ -76,7 +76,13 @@ namespace rocRollerTest::Graphs
                 rocRoller::Operations::BlockScale(tagB, 2, m_tagScaleB, {32, 1}));
         }
 
-        m_tagD = m_command->addOperation(rocRoller::Operations::T_Mul(tagA, tagB)); // D = A * B
+        // Create standard matrix multiply: A[M,K] * B[K,N] -> D[M,N]
+        rocRoller::Operations::FreeIndex  freeDimsA{0, 0}; // A's free dim 0 -> D's dim 0
+        rocRoller::Operations::FreeIndex  freeDimsB{1, 1}; // B's free dim 1 -> D's dim 1
+        rocRoller::Operations::BoundIndex boundDims{1, 0}; // Contract A's dim 1 with B's dim 0
+
+        m_tagD = m_command->addOperation(rocRoller::Operations::T_Mul(
+            tagA, tagB, {freeDimsA}, {freeDimsB}, {boundDims})); // D = A * B
 
         auto tagTensorD = m_command->addOperation(rocRoller::Operations::Tensor(2, m_cdType)); // D
         m_command->addOperation(rocRoller::Operations::T_Store_Tiled(m_tagD, tagTensorD));
@@ -250,7 +256,18 @@ namespace rocRollerTest::Graphs
         auto tagLoadBeta = m_command->addOperation(
             rocRoller::Operations::T_Load_Scalar(m_tagScalarBeta)); // beta
 
-        auto tagAB = m_command->addOperation(rocRoller::Operations::T_Mul(tagA, tagB)); // A * B
+        // Create standard matrix multiply: A[M,K] * B[K,N] -> D[M,N]
+        rocRoller::Operations::FreeIndex  freeDimsA{0, 0}; // A's free dim 0 -> D's dim 0
+        rocRoller::Operations::FreeIndex  freeDimsB{1, 1}; // B's free dim 1 -> D's dim 1
+        rocRoller::Operations::BoundIndex boundDims{1, 0}; // Contract A's dim 1 with B's dim 0
+
+        if(m_problem.transA == "T")
+            std::swap(freeDimsA.ab, boundDims.a);
+        if(m_problem.transB == "T")
+            std::swap(freeDimsB.ab, boundDims.b);
+
+        auto tagAB = m_command->addOperation(rocRoller::Operations::T_Mul(
+            tagA, tagB, {freeDimsA}, {freeDimsB}, {boundDims})); // A * B
 
         rocRoller::Operations::T_Execute execute(m_command->getNextTag());
 
