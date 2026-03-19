@@ -70,6 +70,14 @@ namespace TensileLite
                 m_noBenchmarkRuns
                     = (numBenchmarks == 0 || numEnqPerSync == 0 || numSyncsPerBench == 0);
             }
+
+            if(m_enabled && m_noBenchmarkRuns)
+                startWorker();
+        }
+
+        ReferenceValidator::~ReferenceValidator()
+        {
+            stopWorker();
         }
 
         bool ReferenceValidator::needMoreBenchmarkRuns() const
@@ -120,18 +128,23 @@ namespace TensileLite
                     }
                 }
 
-                if(m_precomputeFuture.valid())
+                if(m_workerPending)
                 {
-                    // Pipeline active — consume the precomputed reference
-                    // now.  Must happen here (not in validateWarmups)
-                    // because startPrecomputeForNextProblem will overwrite
-                    // m_precomputeFuture with the NEXT problem's future
-                    // before validateWarmups runs.
-                    auto waitStart    = TimingClock::now();
-                    m_referenceInputs = m_precomputeFuture.get();
+                    // Pipeline active — wait for the worker to finish
+                    // the precomputed reference for this problem.
+                    std::unique_lock<std::mutex> lk(m_workerMtx);
+                    auto                         waitStart = TimingClock::now();
+                    m_workerCv.wait(lk, [&] { return m_workerResultReady; });
+                    m_referenceInputs   = std::move(m_workerResult);
+                    auto timings        = m_workerTimings;
+                    m_workerResultReady = false;
+                    m_workerPending     = false;
+                    lk.unlock();
                     reportTiming("cpu_reference_gemm_wait",
                         std::chrono::duration<double, std::milli>(
                             TimingClock::now() - waitStart).count());
+                    reportTiming("worker_pickup_delay", timings.pickupMs);
+                    reportTiming("worker_task_duration", timings.solveCpuMs);
                 }
                 else
                 {
@@ -1060,15 +1073,78 @@ namespace TensileLite
             int   elementsToValidate = m_elementsToValidate;
             auto  gemmCopy           = *gemmProblem; // copy problem descriptor
 
-            // Launch async: deep-copy + SolveCPU (both off main thread).
-            m_precomputeFuture = std::async(std::launch::async,
-                [nextProblem, gemmCopy, srcInputs, elementsToValidate]()
+            // Post task to the persistent worker thread.
+            {
+                std::lock_guard<std::mutex> lk(m_workerMtx);
+                m_workerTask = [nextProblem, gemmCopy, srcInputs, elementsToValidate]()
                     -> std::shared_ptr<ProblemInputs>
                 {
                     auto deepCopy = deepCopyGemmInputs(gemmCopy, srcInputs);
                     SolveCPU(nextProblem, deepCopy.get(), elementsToValidate);
                     return deepCopy;
-                });
+                };
+                m_workerResultReady = false;
+                m_workerPostTime    = TimingClock::now();
+            }
+            m_workerPending = true;
+            m_workerCv.notify_one();
+        }
+
+        // ---- Persistent worker thread ----------------------------------------
+
+        void ReferenceValidator::startWorker()
+        {
+            m_workerStop = false;
+            m_worker     = std::thread(&ReferenceValidator::workerLoop, this);
+        }
+
+        void ReferenceValidator::stopWorker()
+        {
+            if(!m_worker.joinable())
+                return;
+            {
+                std::lock_guard<std::mutex> lk(m_workerMtx);
+                m_workerStop = true;
+            }
+            m_workerCv.notify_one();
+            m_worker.join();
+        }
+
+        void ReferenceValidator::workerLoop()
+        {
+            using ms = std::chrono::duration<double, std::milli>;
+
+            // Use fewer OMP threads than the synchronous path
+            // to leave cores free for the main thread.
+            g_solveCpuOmpThreads = std::max(1, kSolveCpuMaxOmpThreads - 2);
+
+            while(true)
+            {
+                std::function<std::shared_ptr<ProblemInputs>()> task;
+                TimingClock::time_point                          postTime;
+                {
+                    std::unique_lock<std::mutex> lk(m_workerMtx);
+                    m_workerCv.wait(lk, [&] { return m_workerStop || m_workerTask; });
+                    if(m_workerStop)
+                        return;
+                    task     = std::move(m_workerTask);
+                    postTime = m_workerPostTime;
+                    m_workerTask = nullptr;
+                }
+
+                auto pickupTime = TimingClock::now();
+                auto result     = task(); // deep-copy + SolveCPU
+                auto doneTime   = TimingClock::now();
+
+                {
+                    std::lock_guard<std::mutex> lk(m_workerMtx);
+                    m_workerResult  = std::move(result);
+                    m_workerTimings.pickupMs   = ms(pickupTime - postTime).count();
+                    m_workerTimings.solveCpuMs = ms(doneTime - pickupTime).count();
+                    m_workerResultReady = true;
+                }
+                m_workerCv.notify_one();
+            }
         }
 
         void ReferenceValidator::finalizeReport() {}

@@ -172,6 +172,14 @@ namespace TensileLite
                       ProblemInputs const*      inputs,
                       size_t                    elementsToValidate);
 
+        /// Max OMP threads for SolveCPU (matches the #define in Reference.cpp).
+        constexpr int kSolveCpuMaxOmpThreads = 64;
+
+        /// Per-thread override for the OMP thread count used by SolveCPU.
+        /// 0 (default) = use kSolveCpuMaxOmpThreads.  Set to N-1 on a
+        /// background worker to leave one core for the main thread.
+        extern thread_local int g_solveCpuOmpThreads;
+
         // Specialized solver for ungrouped GEMM problems. There are currently 2 implementations
         // of reference CPU GEMM. One is substantially faster but only supports a limited set of
         // data types and problem configurations. The other is a more general but slower implementation.

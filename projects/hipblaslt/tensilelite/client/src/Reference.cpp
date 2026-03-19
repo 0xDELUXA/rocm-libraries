@@ -121,6 +121,8 @@ namespace TensileLite
 
     namespace Client
     {
+        thread_local int g_solveCpuOmpThreads = 0;
+
         template <typename T>
         struct Transform
         {
@@ -721,7 +723,7 @@ namespace TensileLite
             // For 2D bias reduction, d batch = 1
             if((tensor.dimensions() == 3 && tensor.sizes()[2] == 1) || tensor.dimensions() == 2)
             {
-                omp_set_num_threads(MAX_OMP_THREADS);
+                omp_set_num_threads(g_solveCpuOmpThreads > 0 ? g_solveCpuOmpThreads : MAX_OMP_THREADS);
 #pragma omp parallel for
                 for(size_t bNum = 0; bNum < biasTensor.totalLogicalElements();
                     bNum += validationStride)
@@ -1243,7 +1245,7 @@ namespace TensileLite
                                            && !std::is_same<Accumulator, std::complex<float>>();
 
             // gemm
-            omp_set_num_threads(MAX_OMP_THREADS);
+            omp_set_num_threads(g_solveCpuOmpThreads > 0 ? g_solveCpuOmpThreads : MAX_OMP_THREADS);
 #pragma omp parallel for
             for(size_t dNum = 0; dNum < d.totalLogicalElements(); dNum += validationStrideGemm)
             {
@@ -1558,7 +1560,7 @@ namespace TensileLite
                                          actArgs);
                 }
 
-                omp_set_num_threads(MAX_OMP_THREADS);
+                omp_set_num_threads(g_solveCpuOmpThreads > 0 ? g_solveCpuOmpThreads : MAX_OMP_THREADS);
 #pragma omp critical
                 {
                     if constexpr(notCmplxAmaxD)

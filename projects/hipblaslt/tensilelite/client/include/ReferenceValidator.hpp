@@ -29,6 +29,7 @@
 #include "RunListener.hpp"
 
 #include "ProgramOptions.hpp"
+#include "TimingInstrumentation.hpp"
 
 #include <Tensile/ContractionProblem.hpp>
 #include <Tensile/ContractionSolution.hpp>
@@ -36,7 +37,11 @@
 #include "DataInitialization.hpp"
 
 #include <cstddef>
+#include <condition_variable>
+#include <functional>
 #include <future>
+#include <mutex>
+#include <thread>
 
 namespace TensileLite
 {
@@ -48,6 +53,7 @@ namespace TensileLite
         public:
             ReferenceValidator(po::variables_map const&            args,
                                std::shared_ptr<DataInitialization> dataInit);
+            ~ReferenceValidator() override;
 
             virtual bool needMoreBenchmarkRuns() const override;
             virtual void preBenchmarkRun() override;
@@ -172,9 +178,38 @@ namespace TensileLite
 
             bool validateSolution(std::shared_ptr<ProblemInputs> inputs);
 
-            std::future<void>                               m_cpuGemmFuture;
-            std::future<std::shared_ptr<ProblemInputs>> m_precomputeFuture;
-            bool                                            m_noBenchmarkRuns = false;
+            std::future<void> m_cpuGemmFuture;
+            bool              m_noBenchmarkRuns = false;
+
+            // Diagnostic timestamps captured by the worker thread and
+            // reported from the main thread after consumption.
+            struct WorkerTimings
+            {
+                double pickupMs  = 0; // time from post to task pickup
+                double deepCopyMs = 0; // deep-copy duration
+                double solveCpuMs = 0; // SolveCPU duration
+            };
+
+            // Persistent worker thread for pipelined CPU reference computation.
+            std::thread             m_worker;
+            std::mutex              m_workerMtx;
+            std::condition_variable m_workerCv;
+            bool                    m_workerStop = false;
+            // Task posted by startPrecomputeForNextProblem, consumed by worker.
+            std::function<std::shared_ptr<ProblemInputs>()> m_workerTask;
+            // Result produced by worker, consumed by preProblem.
+            std::shared_ptr<ProblemInputs> m_workerResult;
+            WorkerTimings                  m_workerTimings;
+            bool                           m_workerResultReady = false;
+            // Set on main thread when a task has been posted; cleared when
+            // the result is consumed.  Only accessed from main thread.
+            bool                           m_workerPending = false;
+            // Timestamp when task was posted (set on main thread, read by worker).
+            TimingClock::time_point        m_workerPostTime;
+
+            void workerLoop();
+            void startWorker();
+            void stopWorker();
         };
     } // namespace Client
 } // namespace TensileLite
