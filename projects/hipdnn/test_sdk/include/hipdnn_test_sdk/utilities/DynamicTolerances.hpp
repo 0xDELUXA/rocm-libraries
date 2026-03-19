@@ -836,3 +836,158 @@ float calculatePointwiseTolerance(double scale, PointwiseErrorClass errorClass)
 }
 
 } // namespace hipdnn_test_sdk::utilities::pointwise
+
+namespace hipdnn_test_sdk::utilities::rmsnorm
+{
+using hipdnn_data_sdk::types::bfloat16;
+using hipdnn_data_sdk::types::half;
+
+/**
+ * @brief Calculates the expected tolerance for RMSNorm forward operations.
+ *
+ * RMSNorm: y[n,c,h,w] = x[n,c,h,w] / RMS(x) * scale[c] [+ bias[c]]
+ * where RMS is computed across channels for each (batch, spatial) position.
+ *
+ * Error sources:
+ * 1. Sum of squares accumulation: C multiply-adds (dominant)
+ * 2. Nonlinear operations: div, sqrt, reciprocal (O(u) each)
+ * 3. Output multiply by scale and optional bias add
+ *
+ * Uses the shared computeGamma() helper for the accumulation error growth factor,
+ * then propagates that error through the nonlinear chain (div, sqrt, reciprocal).
+ *
+ * @tparam OutputType  Data type of y output tensor
+ * @tparam InputType   Data type of x input tensor
+ * @tparam ComputeType Data type for intermediate computation (default: float)
+ * @param xMin       Minimum value in input tensor x
+ * @param xMax       Maximum value in input tensor x
+ * @param scaleMin   Minimum value in scale tensor
+ * @param scaleMax   Maximum value in scale tensor
+ * @param nChannels  Number of channels C (the reduction dimension)
+ * @param biasMin    Minimum value in bias tensor (0 if no bias)
+ * @param biasMax    Maximum value in bias tensor (0 if no bias)
+ * @return Calculated tolerance value as float
+ *
+ * Known Limitations:
+ * - Black-box: does not use kernel implementation details
+ * - Conservative bound from nonlinear propagation (may overestimate for sparse
+ *   activations where most channels are near zero but max(|x|) is large)
+ * - Assumes RMS ~ max(|x|); sparse-spike workloads get looser tolerances
+ * - NONLINEAR_OPS_UPPER_BOUND=5 models worst-case op count; hardware rsqrt fusion
+ *   or multiply reordering may produce fewer rounding errors in practice
+ * - No backward pass support (only forward)
+ * - No invRms-specific tolerance (training mode)
+ */
+template <typename OutputType, typename InputType, typename ComputeType = float>
+float calculateRMSNormFwdTolerance(double xMin,
+                                   double xMax,
+                                   double scaleMin,
+                                   double scaleMax,
+                                   int64_t nChannels,
+                                   double biasMin = 0.0,
+                                   double biasMax = 0.0)
+{
+    // Validate ComputeType
+    static_assert(std::is_same_v<ComputeType, float> || std::is_same_v<ComputeType, double>
+                      || std::is_same_v<ComputeType, half> || std::is_same_v<ComputeType, bfloat16>,
+                  "ComputeType must be float, double, half, or bfloat16");
+
+    if(nChannels < 1)
+    {
+        throw std::invalid_argument("nChannels must be at least 1.");
+    }
+
+    // Compute bounds
+    const double maxAbsX = std::max(std::abs(xMin), std::abs(xMax));
+    const double maxAbsScale = std::max(std::abs(scaleMin), std::abs(scaleMax));
+    const double maxAbsBias = std::max(std::abs(biasMin), std::abs(biasMax));
+
+    // Sum of squares accumulation error
+    // S = sum_{c=0}^{C-1} x_c^2 (self-product)
+    auto numberOfAccumulations = static_cast<uint64_t>(nChannels);
+    const double maxProduct = maxAbsX * maxAbsX; // self-product
+    const double sumAbsProductBound = static_cast<double>(numberOfAccumulations) * maxProduct;
+
+    auto epsilon = static_cast<double>(std::numeric_limits<ComputeType>::epsilon());
+
+    // Use shared computeGamma() for the error growth factor
+    const double gamma
+        = hipdnn_test_sdk::utilities::computeGamma(numberOfAccumulations, epsilon);
+
+    constexpr double GAMMA_MAX = 0.5;
+    if(gamma >= GAMMA_MAX)
+    {
+        throw std::overflow_error(
+            "Error growth factor gamma >= 0.5: the accumulation error exceeds 50% of the signal. "
+            "The computation may be numerically meaningless at this precision and reduction size.");
+    }
+
+    double accumulatedTolerance = gamma * sumAbsProductBound;
+
+    // Input casting error (if InputType precision > ComputeType precision).
+    // Unlike conv (which casts two distinct tensors, factor 2), RMSNorm squares a single
+    // tensor, so only one operand is cast per product term -- factor 1.
+    // This error is added to accumulatedTolerance before nonlinear propagation, so it is
+    // propagated through the same div/sqrt/recip chain as the accumulation error.
+    auto inputEpsilon = static_cast<double>(std::numeric_limits<InputType>::epsilon());
+    if(inputEpsilon < epsilon)
+    {
+        const double castingError = sumAbsProductBound * epsilon;
+        accumulatedTolerance += castingError;
+    }
+
+    // Propagate accumulation error through the nonlinear chain to get output error.
+    //
+    // Derivation of the accTol / (2 * maxAbsX) term:
+    //   invRms = (S/C + eps)^(-1/2),  so  d(invRms)/dS = -1/(2C) * (S/C+eps)^(-3/2)
+    //   |delta_invRms| = |d(invRms)/dS| * |delta_S| = accTol / (2C * RMS^3)
+    //   |delta_invRms / invRms| = accTol / (2 * S)    [since invRms = 1/RMS, eps << S/C]
+    //                           = accTol / (2 * C * mean(x^2))
+    //   Using the worst-case bound S = sumAbsProductBound = C * maxAbsX^2:
+    //     |delta_invRms / invRms| <= accTol / (2 * C * maxAbsX^2) = gamma / 2
+    //   Absolute output error |delta_y| = |x * scale| * |delta_invRms / invRms|
+    //                                   <= maxAbsX * maxAbsScale * accTol / (2 * C * maxAbsX^2)
+    //                                    = accTol / (2 * maxAbsX) * maxAbsScale / C
+    //   But accTol already includes the factor C (via sumAbsProductBound = C * maxAbsX^2), so:
+    //     accTol / (2 * maxAbsX) * maxAbsScale  is the propagated absolute tolerance.
+    //
+    // Additional per-op rounding (div, sqrt, recip, 2 muls) and bias:
+    //   |delta_y| += NONLINEAR_OPS_UPPER_BOUND * u * maxAbsX * maxAbsScale
+    //             += maxAbsBias * epsilon
+    //
+    // Upper bound on distinct rounding ops: div(S,C) + sqrt + recip + mul(x,invRms) + mul(*,scale).
+    // Hardware may fuse some (e.g. rsqrt), so 5 is a modelling upper bound, not a literal count.
+    constexpr double NONLINEAR_OPS_UPPER_BOUND = 5.0;
+
+    double propagatedTolerance = 0.0;
+
+    // When maxAbsX == 0, all inputs are zero. S = 0, invRms = 1/sqrt(eps),
+    // y = 0*invRms*scale + bias = bias.
+    // Accumulation error is zero and the nonlinear-ops term vanishes, leaving only the bias term.
+    if(maxAbsX > 0.0)
+    {
+        propagatedTolerance = (accumulatedTolerance / (2.0 * maxAbsX)) * maxAbsScale;
+    }
+    propagatedTolerance += NONLINEAR_OPS_UPPER_BOUND * epsilon * maxAbsX * maxAbsScale;
+    propagatedTolerance += maxAbsBias * epsilon;
+
+    // Output casting error (if OutputType precision < ComputeType precision)
+    auto outputEpsilon = static_cast<double>(std::numeric_limits<OutputType>::epsilon());
+    if(outputEpsilon > epsilon)
+    {
+        // Conservative output magnitude bound: max(|x|) * max(|scale|) + max(|bias|)
+        const double maxOutputMagnitude = maxAbsX * maxAbsScale + maxAbsBias;
+        propagatedTolerance += maxOutputMagnitude * outputEpsilon;
+    }
+
+    // Check if tolerance exceeds the maximum representable value of OutputType
+    if(propagatedTolerance > static_cast<double>(std::numeric_limits<OutputType>::max()))
+    {
+        throw std::overflow_error(
+            "Calculated tolerance exceeds the maximum representable value of the output type.");
+    }
+
+    return static_cast<float>(propagatedTolerance);
+}
+
+} // namespace hipdnn_test_sdk::utilities::rmsnorm
