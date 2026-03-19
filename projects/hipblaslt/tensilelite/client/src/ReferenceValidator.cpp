@@ -128,17 +128,18 @@ namespace TensileLite
                     }
                 }
 
-                if(m_workerPending)
+                if(m_slotCount > 0)
                 {
-                    // Pipeline active — wait for the worker to finish
-                    // the precomputed reference for this problem.
+                    // Pipeline active — wait for the next result in the ring.
                     std::unique_lock<std::mutex> lk(m_workerMtx);
                     auto                         waitStart = TimingClock::now();
-                    m_workerCv.wait(lk, [&] { return m_workerResultReady; });
-                    m_referenceInputs   = std::move(m_workerResult);
-                    auto timings        = m_workerTimings;
-                    m_workerResultReady = false;
-                    m_workerPending     = false;
+                    auto&                        slot = m_slots[m_slotTail];
+                    m_workerCv.wait(lk, [&] { return slot.done; });
+                    m_referenceInputs = std::move(slot.inputs);
+                    auto timings      = slot.timings;
+                    slot.done         = false;
+                    m_slotTail  = (m_slotTail + 1) % kQueueDepth;
+                    m_slotCount--;
                     lk.unlock();
                     reportTiming("cpu_reference_gemm_wait",
                         std::chrono::duration<double, std::milli>(
@@ -1047,47 +1048,51 @@ namespace TensileLite
         }
 
         void ReferenceValidator::startPrecomputeForNextProblem(
-            ContractionProblem* nextProblem)
+            ContractionProblem** problems, int count)
         {
             if(!m_enabled || !m_noBenchmarkRuns)
                 return;
 
-            auto* gemmProblem = dynamic_cast<ContractionProblemGemm const*>(nextProblem);
-            if(!gemmProblem)
-                return;
-
-            // Prepare CPU data for the next problem on the main thread
-            // (overwrites m_cpuPtrs — safe because the current problem's
-            //  m_referenceInputs is a deep copy).
-            std::shared_ptr<ProblemInputs> snapshot;
+            for(int i = 0; i < count; i++)
             {
-                ScopedTimer timer("cpu_data_init");
-                snapshot = m_dataInit->prepareCPUInputs(nextProblem);
-            }
+                auto* gemmProblem
+                    = dynamic_cast<ContractionProblemGemm const*>(problems[i]);
+                if(!gemmProblem)
+                    continue;
 
-            // Capture a value-copy of the ContractionInputs struct (raw
-            // pointers + scalars).  The pointers reference m_cpuPtrs data
-            // which stays stable until the next startPrecomputeForNextProblem
-            // call — one full problem later.
-            auto  srcInputs          = dynamic_cast<ContractionInputs const&>(*snapshot);
-            int   elementsToValidate = m_elementsToValidate;
-            auto  gemmCopy           = *gemmProblem; // copy problem descriptor
-
-            // Post task to the persistent worker thread.
-            {
-                std::lock_guard<std::mutex> lk(m_workerMtx);
-                m_workerTask = [nextProblem, gemmCopy, srcInputs, elementsToValidate]()
-                    -> std::shared_ptr<ProblemInputs>
+                // Prepare CPU data (overwrites m_cpuPtrs — safe because
+                // previous deep copies are independent).
+                std::shared_ptr<ProblemInputs> snapshot;
                 {
-                    auto deepCopy = deepCopyGemmInputs(gemmCopy, srcInputs);
-                    SolveCPU(nextProblem, deepCopy.get(), elementsToValidate);
-                    return deepCopy;
-                };
-                m_workerResultReady = false;
-                m_workerPostTime    = TimingClock::now();
+                    ScopedTimer timer("cpu_data_init");
+                    snapshot = m_dataInit->prepareCPUInputs(problems[i]);
+                }
+
+                // Deep-copy on main thread (~1ms) so m_cpuPtrs is free
+                // for the next iteration.
+                auto& src     = dynamic_cast<ContractionInputs const&>(*snapshot);
+                auto deepCopy = deepCopyGemmInputs(*gemmProblem, src);
+
+                // Post into the next ring slot.
+                {
+                    std::lock_guard<std::mutex> lk(m_workerMtx);
+                    auto& slot              = m_slots[m_slotHead];
+                    slot.inputs             = std::move(deepCopy);
+                    slot.problem            = problems[i];
+                    slot.elementsToValidate = m_elementsToValidate;
+                    slot.postTime           = TimingClock::now();
+                    slot.ready              = true;
+                    slot.done               = false;
+                    m_slotHead = (m_slotHead + 1) % kQueueDepth;
+                    m_slotCount++;
+                }
+                m_workerCv.notify_one();
             }
-            m_workerPending = true;
-            m_workerCv.notify_one();
+        }
+
+        int ReferenceValidator::pendingCount() const
+        {
+            return m_slotCount;
         }
 
         // ---- Persistent worker thread ----------------------------------------
@@ -1120,30 +1125,33 @@ namespace TensileLite
 
             while(true)
             {
-                std::function<std::shared_ptr<ProblemInputs>()> task;
-                TimingClock::time_point                          postTime;
+                int slotIdx;
                 {
                     std::unique_lock<std::mutex> lk(m_workerMtx);
-                    m_workerCv.wait(lk, [&] { return m_workerStop || m_workerTask; });
+                    m_workerCv.wait(lk, [&] {
+                        return m_workerStop || m_slots[m_workerIdx].ready;
+                    });
                     if(m_workerStop)
                         return;
-                    task     = std::move(m_workerTask);
-                    postTime = m_workerPostTime;
-                    m_workerTask = nullptr;
+                    slotIdx = m_workerIdx;
+                    m_slots[slotIdx].ready = false;
+                    m_workerIdx = (m_workerIdx + 1) % kQueueDepth;
                 }
 
-                auto pickupTime = TimingClock::now();
-                auto result     = task(); // deep-copy + SolveCPU
-                auto doneTime   = TimingClock::now();
+                auto& slot      = m_slots[slotIdx];
+                auto  pickupTime = TimingClock::now();
 
+                SolveCPU(slot.problem, slot.inputs.get(), slot.elementsToValidate);
+
+                auto doneTime = TimingClock::now();
                 {
                     std::lock_guard<std::mutex> lk(m_workerMtx);
-                    m_workerResult  = std::move(result);
-                    m_workerTimings.pickupMs   = ms(pickupTime - postTime).count();
-                    m_workerTimings.solveCpuMs = ms(doneTime - pickupTime).count();
-                    m_workerResultReady = true;
+                    slot.timings.pickupMs   = ms(pickupTime - slot.postTime).count();
+                    slot.timings.solveCpuMs = ms(doneTime - pickupTime).count();
+                    slot.done = true;
                 }
                 m_workerCv.notify_one();
+                // Loop immediately — if another slot is ready, pick it up.
             }
         }
 

@@ -36,6 +36,7 @@
 
 #include "DataInitialization.hpp"
 
+#include <array>
 #include <cstddef>
 #include <condition_variable>
 #include <functional>
@@ -127,9 +128,16 @@ namespace TensileLite
                               ContractionInputs const&      reference,
                               ContractionInputs const&      result);
 
-            /// Start async CPU reference computation for the next problem.
-            /// Must be called after rotating_buffer_preparation.
-            void startPrecomputeForNextProblem(ContractionProblem* nextProblem);
+            static constexpr int kQueueDepth = 2;
+
+            /// Queue async CPU reference computation for upcoming problems.
+            /// Deep-copies inputs on the calling thread, queues SolveCPU to worker.
+            /// @p problems array of up to kQueueDepth problem pointers.
+            /// @p count    number of problems to queue.
+            void startPrecomputeForNextProblem(ContractionProblem** problems, int count);
+
+            /// Number of tasks currently in the ring (pending + done, not yet consumed).
+            int pendingCount() const;
 
             virtual void finalizeReport() override;
 
@@ -185,27 +193,33 @@ namespace TensileLite
             // reported from the main thread after consumption.
             struct WorkerTimings
             {
-                double pickupMs  = 0; // time from post to task pickup
-                double deepCopyMs = 0; // deep-copy duration
+                double pickupMs   = 0; // time from post to task pickup
                 double solveCpuMs = 0; // SolveCPU duration
             };
 
-            // Persistent worker thread for pipelined CPU reference computation.
-            std::thread             m_worker;
-            std::mutex              m_workerMtx;
-            std::condition_variable m_workerCv;
-            bool                    m_workerStop = false;
-            // Task posted by startPrecomputeForNextProblem, consumed by worker.
-            std::function<std::shared_ptr<ProblemInputs>()> m_workerTask;
-            // Result produced by worker, consumed by preProblem.
-            std::shared_ptr<ProblemInputs> m_workerResult;
-            WorkerTimings                  m_workerTimings;
-            bool                           m_workerResultReady = false;
-            // Set on main thread when a task has been posted; cleared when
-            // the result is consumed.  Only accessed from main thread.
-            bool                           m_workerPending = false;
-            // Timestamp when task was posted (set on main thread, read by worker).
-            TimingClock::time_point        m_workerPostTime;
+            // Ring-buffered worker queue for pipelined CPU reference computation.
+            struct WorkerSlot
+            {
+                // Task input (set by main, consumed by worker)
+                std::shared_ptr<ProblemInputs> inputs;
+                ContractionProblem*            problem            = nullptr;
+                int                            elementsToValidate = 0;
+                TimingClock::time_point        postTime;
+                // Lifecycle flags (guarded by m_workerMtx)
+                bool                           ready = false; // main sets true, worker clears
+                bool                           done  = false; // worker sets true, main clears
+                WorkerTimings                  timings;
+            };
+
+            std::thread                            m_worker;
+            std::mutex                             m_workerMtx;
+            std::condition_variable                m_workerCv;
+            bool                                   m_workerStop = false;
+            std::array<WorkerSlot, kQueueDepth>    m_slots;
+            int  m_slotHead  = 0; // next slot for main to post into
+            int  m_slotTail  = 0; // next slot for main to consume from
+            int  m_slotCount = 0; // slots with pending/done tasks (guarded by m_workerMtx)
+            int  m_workerIdx = 0; // next slot for worker to pick up (guarded by m_workerMtx)
 
             void workerLoop();
             void startWorker();

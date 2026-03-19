@@ -1092,13 +1092,15 @@ int main(int argc, const char* argv[])
                         maxRotatingBufferNum, problem, inputs, stream);
                     static_cast<void>(hipDeviceSynchronize());
                 }
-                // Start precomputing CPU reference for the next problem
-                // (deep-copy + SolveCPU both run in the async thread).
+                // Queue 1 problem ahead for async CPU reference.
+                // Only 1 per iteration: prepareCPUInputs overwrites m_cpuPtrs
+                // which prepareGPUInputs depends on for the current problem.
                 if(referenceValidator && problemIdx + 1 <= lastProblemIdx)
                 {
                     ScopedTimer timer("cpu_reference_precompute");
+                    ContractionProblem* next = problems[problemIdx + 1].get();
                     referenceValidator->startPrecomputeForNextProblem(
-                        problems[problemIdx + 1].get());
+                        &next, 1);
                 }
 
                 bool resetInput = false;
