@@ -87,10 +87,11 @@ TIMING_HIERARCHY = {
             "listener_setup": {},
             "reporter_setup": {},
             "pre_problem": {
+                "cpu_reference_gemm_wait": {},
+                "cpu_reference_gemm": {},
                 "cpu_data_init": {},
             },
             "validate_warmups": {
-                "cpu_reference_gemm_wait": {},
                 "validate_gpu_sync": {},
                 "validate_reference": {
                     "validate_gpu_readback": {},
@@ -98,6 +99,7 @@ TIMING_HIERARCHY = {
                     "validate_mismatch_printing": {},
                 },
             },
+            "cpu_reference_precompute": {},
             "gpu_input_preparation": {},
             "gpu_input_reset": {},
             "cancel_async_reset": {},
@@ -165,6 +167,7 @@ CPP_PHASE_GROUPS = {
     ],
     "Data Preparation": [
         "pre_problem",
+        "cpu_reference_precompute",
         "gpu_input_preparation",
         "gpu_input_reset",
         "cancel_async_reset",

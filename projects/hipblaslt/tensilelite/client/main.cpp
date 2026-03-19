@@ -981,8 +981,9 @@ int main(int argc, const char* argv[])
     }
 
     MetaRunListener listeners;
-    std::shared_ptr<BenchmarkTimer> benchmarkTimer;
-    float                           flushTimeMs{};
+    std::shared_ptr<BenchmarkTimer>      benchmarkTimer;
+    std::shared_ptr<ReferenceValidator>  referenceValidator;
+    float                                flushTimeMs{};
 
     {
         ScopedTimer timer("listener_setup");
@@ -995,7 +996,8 @@ int main(int argc, const char* argv[])
             bool hasIcacheFlush
                 = std::any_of(begin(icacheFlushArgs), end(icacheFlushArgs), [](auto i) { return i; });
             flushTimeMs = hasIcacheFlush ? estimate_flush_kernel_time(stream, gpuTimer) : 0.f;
-            listeners.addListener(std::make_shared<ReferenceValidator>(args, dataInit));
+            referenceValidator = std::make_shared<ReferenceValidator>(args, dataInit);
+            listeners.addListener(referenceValidator);
             benchmarkTimer = std::make_shared<BenchmarkTimer>(args, *hardware, flushTimeMs * 1000);
             listeners.addListener(benchmarkTimer);
             listeners.addListener(std::make_shared<HardwareMonitorListener>(args));
@@ -1090,6 +1092,15 @@ int main(int argc, const char* argv[])
                         maxRotatingBufferNum, problem, inputs, stream);
                     static_cast<void>(hipDeviceSynchronize());
                 }
+                // Start precomputing CPU reference for the next problem
+                // (deep-copy + SolveCPU both run in the async thread).
+                if(referenceValidator && problemIdx + 1 <= lastProblemIdx)
+                {
+                    ScopedTimer timer("cpu_reference_precompute");
+                    referenceValidator->startPrecomputeForNextProblem(
+                        problems[problemIdx + 1].get());
+                }
+
                 bool resetInput = false;
                 while(solutionIterator->moreSolutionsInProblem())
                 {

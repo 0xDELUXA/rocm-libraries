@@ -121,11 +121,21 @@ namespace TensileLite
                               ContractionInputs const&      reference,
                               ContractionInputs const&      result);
 
+            /// Start async CPU reference computation for the next problem.
+            /// Must be called after rotating_buffer_preparation.
+            void startPrecomputeForNextProblem(ContractionProblem* nextProblem);
+
             virtual void finalizeReport() override;
 
             virtual int error() const override;
 
         private:
+            /// Deep-copy ContractionInputs tensor data into an independent
+            /// contiguous buffer.  Safe to call from any thread — only reads
+            /// from the pointers inside @p src (which must remain valid).
+            static std::shared_ptr<ProblemInputs> deepCopyGemmInputs(
+                ContractionProblemGemm const& problem,
+                ContractionInputs const&      src);
             void allocateResultBuffer(size_t bytes);
 
             std::shared_ptr<DataInitialization> m_dataInit;
@@ -162,7 +172,9 @@ namespace TensileLite
 
             bool validateSolution(std::shared_ptr<ProblemInputs> inputs);
 
-            std::future<void> m_cpuGemmFuture;
+            std::future<void>                               m_cpuGemmFuture;
+            std::future<std::shared_ptr<ProblemInputs>> m_precomputeFuture;
+            bool                                            m_noBenchmarkRuns = false;
         };
     } // namespace Client
 } // namespace TensileLite

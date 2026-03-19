@@ -35,6 +35,7 @@
 #include <Tensile/hip/HipUtils.hpp>
 
 #include <cstddef>
+#include <cstring>
 
 namespace TensileLite
 {
@@ -61,6 +62,14 @@ namespace TensileLite
                          || m_printTensorRef || m_printTensorBias || m_printTensorAmaxD;
 
             m_enabled = m_elementsToValidate != 0 || m_printAny;
+
+            {
+                int numBenchmarks    = args["num-benchmarks"].as<int>();
+                int numEnqPerSync    = args["num-enqueues-per-sync"].as<int>();
+                int numSyncsPerBench = args["num-syncs-per-benchmark"].as<int>();
+                m_noBenchmarkRuns
+                    = (numBenchmarks == 0 || numEnqPerSync == 0 || numSyncsPerBench == 0);
+            }
         }
 
         bool ReferenceValidator::needMoreBenchmarkRuns() const
@@ -111,18 +120,51 @@ namespace TensileLite
                     }
                 }
 
+                if(m_precomputeFuture.valid())
                 {
-                    ScopedTimer timer("cpu_data_init");
-                    m_referenceInputs = m_dataInit->prepareCPUInputs(problem);
+                    // Pipeline active — consume the precomputed reference
+                    // now.  Must happen here (not in validateWarmups)
+                    // because startPrecomputeForNextProblem will overwrite
+                    // m_precomputeFuture with the NEXT problem's future
+                    // before validateWarmups runs.
+                    auto waitStart    = TimingClock::now();
+                    m_referenceInputs = m_precomputeFuture.get();
+                    reportTiming("cpu_reference_gemm_wait",
+                        std::chrono::duration<double, std::milli>(
+                            TimingClock::now() - waitStart).count());
                 }
-
+                else
                 {
-                    auto* refInputs          = m_referenceInputs.get();
-                    int   elementsToValidate = m_elementsToValidate;
-                    m_cpuGemmFuture          = std::async(std::launch::async,
-                        [problem, refInputs, elementsToValidate]() {
-                            SolveCPU(problem, refInputs, elementsToValidate);
-                        });
+                    {
+                        ScopedTimer timer("cpu_data_init");
+                        m_referenceInputs = m_dataInit->prepareCPUInputs(problem);
+                    }
+                    if(m_noBenchmarkRuns)
+                    {
+                        // Deep-copy + solve synchronously so m_cpuPtrs is
+                        // free for the next problem's precomputation.
+                        auto* gemm = dynamic_cast<ContractionProblemGemm const*>(problem);
+                        if(gemm)
+                        {
+                            auto& src = dynamic_cast<ContractionInputs const&>(
+                                *m_referenceInputs);
+                            ScopedTimer timer("cpu_reference_gemm");
+                            m_referenceInputs = deepCopyGemmInputs(*gemm, src);
+                            SolveCPU(problem,
+                                     m_referenceInputs.get(),
+                                     m_elementsToValidate);
+                        }
+                    }
+                    else
+                    {
+                        // Benchmark mode — launch async (simple overlap)
+                        auto* refInputs          = m_referenceInputs.get();
+                        int   elementsToValidate = m_elementsToValidate;
+                        m_cpuGemmFuture          = std::async(std::launch::async,
+                            [problem, refInputs, elementsToValidate]() {
+                                SolveCPU(problem, refInputs, elementsToValidate);
+                            });
+                    }
                 }
             }
         }
@@ -892,6 +934,142 @@ namespace TensileLite
         }
 
         void ReferenceValidator::postProblem() {}
+
+        // ---------------------------------------------------------------
+        // Deep-copy + pipeline helpers
+        // ---------------------------------------------------------------
+
+        std::shared_ptr<ProblemInputs> ReferenceValidator::deepCopyGemmInputs(
+            ContractionProblemGemm const& problem,
+            ContractionInputs const&      src)
+        {
+            using T = ContractionProblemGemm::TENSOR;
+
+            auto const& tensors   = problem.tensors();
+            int const   numTensors = static_cast<int>(tensors.size());
+
+            // 1. Compute total byte size and per-tensor offsets.
+            size_t              totalBytes = 0;
+            std::vector<size_t> offsets(T::TENSOR_COUNT, 0);
+            for(int i = 0; i < numTensors && i < T::TENSOR_COUNT; i++)
+            {
+                offsets[i] = totalBytes;
+                totalBytes += tensors[i].totalAllocatedBytes();
+            }
+
+            // 2. Allocate a single contiguous buffer.
+            auto     backing = std::make_shared<std::vector<uint8_t>>(totalBytes);
+            uint8_t* base    = backing->data();
+
+            // 3. Helper: get the source pointer for a tensor index.
+            auto srcField = [&](int idx) -> void const* {
+                switch(static_cast<T>(idx))
+                {
+                case T::A:             return src.a;
+                case T::B:             return src.b;
+                case T::C:             return src.c;
+                case T::D:             return src.d;
+                case T::E:             return src.e;
+                case T::BIAS:          return src.bias;
+                case T::SCALEA:        return src.scaleA;
+                case T::SCALEB:        return src.scaleB;
+                case T::SCALEC:        return src.scaleC;
+                case T::SCALED:        return src.scaleD;
+                case T::SCALEALPHAVEC: return src.scaleAlphaVec;
+                case T::METADATA:      return src.metadata;
+                case T::Synchronizer:  return src.Synchronizer;
+                case T::AMAXD:         return src.amaxD;
+                case T::COMPRESSED:    return src.compressed;
+                default:               return nullptr;
+                }
+            };
+
+            // 4. Build the destination ContractionInputs.
+            auto* dst            = new ContractionInputs();
+            dst->alpha           = src.alpha;
+            dst->beta            = src.beta;
+            dst->activationArgs  = src.activationArgs;
+            dst->maxElements     = src.maxElements;
+            dst->workspaceSize   = src.workspaceSize;
+            dst->gpu             = false;
+
+            // 5. Copy each tensor and set the dst pointer.
+            auto setDstField = [&](int idx, void* ptr) {
+                switch(static_cast<T>(idx))
+                {
+                case T::A:             dst->a             = ptr; break;
+                case T::B:             dst->b             = ptr; break;
+                case T::C:             dst->c             = ptr; break;
+                case T::D:             dst->d             = ptr; break;
+                case T::E:             dst->e             = ptr; break;
+                case T::BIAS:          dst->bias          = ptr; break;
+                case T::SCALEA:        dst->scaleA        = ptr; break;
+                case T::SCALEB:        dst->scaleB        = ptr; break;
+                case T::SCALEC:        dst->scaleC        = ptr; break;
+                case T::SCALED:        dst->scaleD        = ptr; break;
+                case T::SCALEALPHAVEC: dst->scaleAlphaVec = ptr; break;
+                case T::METADATA:      dst->metadata      = (unsigned char*)ptr; break;
+                case T::Synchronizer:  dst->Synchronizer  = ptr; break;
+                case T::AMAXD:         dst->amaxD         = ptr; break;
+                case T::COMPRESSED:    dst->compressed    = ptr; break;
+                default: break;
+                }
+            };
+
+            for(int i = 0; i < numTensors && i < T::TENSOR_COUNT; i++)
+            {
+                void const* sp = srcField(i);
+                if(!sp)
+                    continue;
+                size_t bytes = tensors[i].totalAllocatedBytes();
+                if(bytes == 0)
+                    continue;
+                std::memcpy(base + offsets[i], sp, bytes);
+                setDstField(i, base + offsets[i]);
+            }
+
+            // 6. Return shared_ptr that captures the backing buffer.
+            return std::shared_ptr<ProblemInputs>(
+                dst, [backing](ProblemInputs* p) { delete p; });
+        }
+
+        void ReferenceValidator::startPrecomputeForNextProblem(
+            ContractionProblem* nextProblem)
+        {
+            if(!m_enabled || !m_noBenchmarkRuns)
+                return;
+
+            auto* gemmProblem = dynamic_cast<ContractionProblemGemm const*>(nextProblem);
+            if(!gemmProblem)
+                return;
+
+            // Prepare CPU data for the next problem on the main thread
+            // (overwrites m_cpuPtrs — safe because the current problem's
+            //  m_referenceInputs is a deep copy).
+            std::shared_ptr<ProblemInputs> snapshot;
+            {
+                ScopedTimer timer("cpu_data_init");
+                snapshot = m_dataInit->prepareCPUInputs(nextProblem);
+            }
+
+            // Capture a value-copy of the ContractionInputs struct (raw
+            // pointers + scalars).  The pointers reference m_cpuPtrs data
+            // which stays stable until the next startPrecomputeForNextProblem
+            // call — one full problem later.
+            auto  srcInputs          = dynamic_cast<ContractionInputs const&>(*snapshot);
+            int   elementsToValidate = m_elementsToValidate;
+            auto  gemmCopy           = *gemmProblem; // copy problem descriptor
+
+            // Launch async: deep-copy + SolveCPU (both off main thread).
+            m_precomputeFuture = std::async(std::launch::async,
+                [nextProblem, gemmCopy, srcInputs, elementsToValidate]()
+                    -> std::shared_ptr<ProblemInputs>
+                {
+                    auto deepCopy = deepCopyGemmInputs(gemmCopy, srcInputs);
+                    SolveCPU(nextProblem, deepCopy.get(), elementsToValidate);
+                    return deepCopy;
+                });
+        }
 
         void ReferenceValidator::finalizeReport() {}
 
