@@ -136,8 +136,10 @@ TIMING_HIERARCHY = {
             "post_problem": {},
             "finalize_report": {},
             "timing_overhead": {},
+            "flush_timing_buffer": {},
         },
         "python_timing_overhead": {},
+        "calibrate_python_timing_overhead": {},
     },
     "python_library_logic": {
         "python_logic_parse_solutions": {},
@@ -187,6 +189,7 @@ CPP_PHASE_GROUPS = {
     ],
     "Timing Overhead": [
         "timing_overhead",
+        "flush_timing_buffer",
     ],
 }
 
