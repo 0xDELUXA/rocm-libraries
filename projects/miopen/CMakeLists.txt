@@ -248,6 +248,7 @@ endif()
 
 # Depend on Composable Kernels
 option(MIOPEN_USE_COMPOSABLEKERNEL "Enable MIOpen to use composable kernels for various operations" On)
+option(MIOPEN_CK_UNBUNDLE_PER_ARCH "Unbundle CK fat archive into per-architecture libraries" OFF)
 if(MIOPEN_BACKEND_OPENCL)
     set(MIOPEN_USE_COMPOSABLEKERNEL OFF)
 endif()
@@ -333,6 +334,75 @@ if( MIOPEN_BACKEND STREQUAL "HIP" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN_B
             find_package(composable_kernel 1.0.0 COMPONENTS device_conv_operations)
         endif()
     endif()
+
+    # --- Per-architecture CK conv library unbundling ---
+    if(MIOPEN_CK_UNBUNDLE_PER_ARCH AND MIOPEN_USE_COMPOSABLEKERNEL)
+        # Unbundle the fat libdevice_conv_operations.a into per-arch .a files
+        # so each per-target MIOpen .so can link only the CK code it needs.
+
+        # Arch name sanitization for CMake target names
+        function(miopen_sanitize_arch ARCH OUT_VAR)
+            string(REPLACE ":" "_" _r "${ARCH}")
+            string(REPLACE "+" "p" _r "${_r}")
+            string(REPLACE "-" "_" _r "${_r}")
+            set(${OUT_VAR} "${_r}" PARENT_SCOPE)
+        endfunction()
+
+        # Find unbundling tools
+        find_program(MIOPEN_OFFLOAD_BUNDLER clang-offload-bundler
+            HINTS ${CMAKE_HIP_COMPILER_TOOLKIT_ROOT}/bin
+                  ${ROCM_PATH}/llvm/bin
+                  /opt/rocm/llvm/bin)
+        find_program(MIOPEN_LLVM_OBJCOPY llvm-objcopy
+            HINTS ${CMAKE_HIP_COMPILER_TOOLKIT_ROOT}/bin
+                  ${ROCM_PATH}/llvm/bin
+                  /opt/rocm/llvm/bin)
+
+        if(NOT MIOPEN_OFFLOAD_BUNDLER OR NOT MIOPEN_LLVM_OBJCOPY)
+            message(FATAL_ERROR "Per-arch CK unbundling requires clang-offload-bundler and llvm-objcopy")
+        endif()
+
+        # Get the fat archive path
+        if(MIOPEN_BUILD_CK)
+            set(CK_FAT_ARCHIVE_TARGET device_conv_operations)
+            set(CK_FAT_ARCHIVE_PATH $<TARGET_FILE:device_conv_operations>)
+        else()
+            get_target_property(CK_FAT_ARCHIVE_PATH composable_kernel::device_conv_operations IMPORTED_LOCATION)
+            set(CK_FAT_ARCHIVE_TARGET composable_kernel::device_conv_operations)
+        endif()
+
+        set(CK_PER_ARCH_DIR "${CMAKE_CURRENT_BINARY_DIR}/lib")
+
+        set(MIOPEN_CK_PER_ARCH_TARGETS)
+        foreach(arch IN LISTS GPU_TARGETS)
+            miopen_sanitize_arch("${arch}" arch_safe)
+            set(per_arch_lib "${CK_PER_ARCH_DIR}/libdevice_conv_operations_${arch_safe}.a")
+            set(target_name "ck_conv_${arch_safe}")
+
+            add_custom_command(
+                OUTPUT "${per_arch_lib}"
+                DEPENDS ${CK_FAT_ARCHIVE_TARGET}
+                COMMAND ${CMAKE_COMMAND}
+                    -DFAT_ARCHIVE=${CK_FAT_ARCHIVE_PATH}
+                    -DARCH=${arch}
+                    -DOUTPUT=${per_arch_lib}
+                    -DBUNDLER=${MIOPEN_OFFLOAD_BUNDLER}
+                    -DAR=${CMAKE_AR}
+                    -DLLVM_OBJCOPY=${MIOPEN_LLVM_OBJCOPY}
+                    -DPATCHER=${CMAKE_CURRENT_SOURCE_DIR}/cmake/patch_fatbin_inplace.py
+                    -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/unbundle_archive.cmake
+                COMMENT "Unbundling CK conv operations for ${arch}"
+            )
+
+            add_custom_target(${target_name}_unbundle ALL DEPENDS "${per_arch_lib}")
+            add_library(${target_name} STATIC IMPORTED GLOBAL)
+            set_target_properties(${target_name} PROPERTIES IMPORTED_LOCATION "${per_arch_lib}")
+            add_dependencies(${target_name} ${target_name}_unbundle)
+
+            list(APPEND MIOPEN_CK_PER_ARCH_TARGETS "${target_name}")
+        endforeach()
+    endif() # MIOPEN_CK_UNBUNDLE_PER_ARCH
+
     if( MIOPEN_BACKEND STREQUAL "HIPNOGPU")
         set(MIOPEN_MODE_NOGPU 1)
     endif()
