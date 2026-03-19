@@ -369,7 +369,10 @@ namespace rocRoller
             return info;
         }
 
-        ExpressionPtr getAccumulationLoopSize(KernelGraph const& graph, int tileTag, int userTag)
+        ExpressionPtr getAccumulationLoopSize(KernelGraph const& graph,
+                                              int                tileTag,
+                                              int                userTag,
+                                              int                tensorContractionTag)
         {
             auto sdims = graph.coordinates
                              .getOutputNodeIndices(
@@ -378,8 +381,15 @@ namespace rocRoller
 
             auto userA = graph.coordinates.getNode<User>(userTag);
             auto tileA = graph.coordinates.getNode<MacroTile>(tileTag);
-            auto matK  = graph.coordinates.getNode<SubDimension>(sdims[1]).size;
-            auto macK  = literal(static_cast<uint>(tileA.sizes[1])); // M x K
+
+            // Get the bound (contracting) dimension index in MacroTile semantic coordinates
+            auto contraction = graph.control.getNode<TensorContraction>(tensorContractionTag);
+            AssertFatal(contraction.boundDims.size() == 1,
+                        "Expected exactly one bound dimension for matrix multiply");
+
+            auto matK
+                = graph.coordinates.getNode<SubDimension>(sdims[contraction.boundDims[0].a]).size;
+            auto macK = literal(static_cast<uint>(tileA.sizes[1])); // M x K
 
             auto toUInt32 = [](ExpressionPtr expr) -> ExpressionPtr {
                 return std::make_shared<Expression::Expression>(
@@ -456,7 +466,7 @@ namespace rocRoller
                             ShowValue(expectedSkip));
             }
 
-            auto accumulationCoordSize = getAccumulationLoopSize(graph, a, info.userA);
+            auto accumulationCoordSize = getAccumulationLoopSize(graph, a, info.userA, tag);
 
             auto [K, forK] = rangeFor(graph, accumulationCoordSize, rocRoller::KLOOP);
 
