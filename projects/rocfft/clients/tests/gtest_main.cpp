@@ -467,6 +467,11 @@ int main(int argc, char* argv[])
     // Bool option to just print tokens and exit
     bool printtokens{false};
 
+    // This test refrains from using (much) more than half of the full system's memory.
+    // Some dependencies (e.g., FFTW) and/or other applications executing concurrently
+    // have their own needs, which can't be (easily) accounted for.
+    const size_t upper_bound_used_sys_mem_bytes = system_memory::singleton().get_total_bytes() / 2;
+
     // Declare the supported options. Some option pointers are declared to track passed opts.
     app.add_flag("--version", "Print queryable version information from the rocfft library")
         ->each([](const std::string&) {
@@ -533,8 +538,11 @@ int main(int argc, char* argv[])
     non_token->add_option("--ooffset", manual_params.ooffset, "Output offset");
     app.add_option("--isize", manual_params.isize, "Logical size of input buffer");
     app.add_option("--osize", manual_params.osize, "Logical size of output buffer");
-    app.add_option("--R", ramgb, "RAM limit in GiB for tests")
-        ->default_val(system_memory::singleton().get_total_gbytes());
+    app.add_option("--R",
+                   ramgb,
+                   "RAM limit in GiB for tests. Values are capped to "
+                       + system_memory::byte_size_to_str(upper_bound_used_sys_mem_bytes))
+        ->default_val(DivRoundingUp(upper_bound_used_sys_mem_bytes, ONE_GiB));
     app.add_option("--V", vramgb, "VRAM limit in GiB for tests")->default_val(0);
     app.add_option("--half_epsilon", half_epsilon)->default_val(9.77e-4);
     app.add_option("--single_epsilon", single_epsilon)->default_val(3.75e-5);
@@ -647,11 +655,11 @@ int main(int argc, char* argv[])
     fftwf_plan_with_nthreads(rocfft_concurrency());
 #endif
 
-    // Set host memory limit from command-line options (if more restrictive)
-    if(ramgb * ONE_GiB < system_memory::singleton().get_limit_bytes())
-        system_memory::singleton().set_limit_gbytes(ramgb);
-    std::cout << "Usable system memory: " << system_memory::singleton().get_usable_gbytes()
-              << " GiB" << std::endl;
+    system_memory::singleton().set_limit_bytes(
+        std::min(ramgb * ONE_GiB, upper_bound_used_sys_mem_bytes));
+    std::cout << "Refraining from using more than "
+              << system_memory::singleton().get_limit_bytes_str() << " of system memory."
+              << std::endl;
 
     if(use_fftw_wisdom)
     {

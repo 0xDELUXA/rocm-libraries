@@ -123,6 +123,10 @@ public:
         std::shared_lock lock(sys_memory_mutex);
         return byte_size_to_str(free_bytes);
     }
+    std::string get_total_bytes_str() const
+    {
+        return byte_size_to_str(total_bytes);
+    }
     std::string get_used_bytes_str() const
     {
         std::shared_lock lock(sys_memory_mutex);
