@@ -27,3 +27,6 @@ else()
     message(DEBUG "Skipping gfx9|gfx11|gfx12 mma layout validation tests for current target")
 endif()
 
+add_gtest_executable(test_amdgcn_mma_pipeline test_amdgcn_mma_pipeline.cpp)
+target_compile_options(test_amdgcn_mma_layout PRIVATE ${EXAMPLE_GEMM_COMPILE_OPTIONS})
+
