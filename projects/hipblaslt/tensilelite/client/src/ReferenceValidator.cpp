@@ -117,8 +117,12 @@ namespace TensileLite
                 }
 
                 {
-                    ScopedTimer timer("cpu_reference_gemm");
-                    SolveCPU(problem, m_referenceInputs.get(), m_elementsToValidate);
+                    auto* refInputs          = m_referenceInputs.get();
+                    int   elementsToValidate = m_elementsToValidate;
+                    m_cpuGemmFuture          = std::async(std::launch::async,
+                        [problem, refInputs, elementsToValidate]() {
+                            SolveCPU(problem, refInputs, elementsToValidate);
+                        });
                 }
             }
         }
@@ -198,6 +202,15 @@ namespace TensileLite
         {
             if(m_enabled && !m_validatedSolution)
             {
+                if(m_cpuGemmFuture.valid())
+                {
+                    auto waitStart = TimingClock::now();
+                    m_cpuGemmFuture.get();
+                    reportTiming("cpu_reference_gemm_wait",
+                        std::chrono::duration<double, std::milli>(
+                            TimingClock::now() - waitStart).count());
+                }
+
                 ScopedTimer timer("validate_reference");
                 validateSolution(inputs);
                 m_validatedSolution = true;

@@ -36,6 +36,7 @@
 #include "DataInitialization.hpp"
 
 #include <cstddef>
+#include <future>
 
 namespace TensileLite
 {
@@ -160,6 +161,8 @@ namespace TensileLite
             size_t m_errorsReported    = 0;
 
             bool validateSolution(std::shared_ptr<ProblemInputs> inputs);
+
+            std::future<void> m_cpuGemmFuture;
         };
     } // namespace Client
 } // namespace TensileLite

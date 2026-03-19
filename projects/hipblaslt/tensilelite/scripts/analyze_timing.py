@@ -88,9 +88,9 @@ TIMING_HIERARCHY = {
             "reporter_setup": {},
             "pre_problem": {
                 "cpu_data_init": {},
-                "cpu_reference_gemm": {},
             },
             "validate_warmups": {
+                "cpu_reference_gemm_wait": {},
                 "validate_gpu_sync": {},
                 "validate_reference": {
                     "validate_gpu_readback": {},
@@ -239,7 +239,7 @@ class TimingRecord:
 class ProblemTiming:
     context: Dict[str, str]
     cpu_data_init_ms: float = 0.0
-    cpu_reference_gemm_ms: float = 0.0
+    cpu_reference_gemm_wait_ms: float = 0.0
     gpu_kernel_execution_ms: float = 0.0
 
 
@@ -379,8 +379,8 @@ def analyze_timing_file(filepath: str) -> Tuple[Dict[str, List[float]], List[Pro
                 if current_problem:
                     if record.category == 'cpu_data_init':
                         current_problem.cpu_data_init_ms = record.duration_ms
-                    elif record.category == 'cpu_reference_gemm':
-                        current_problem.cpu_reference_gemm_ms = record.duration_ms
+                    elif record.category == 'cpu_reference_gemm_wait':
+                        current_problem.cpu_reference_gemm_wait_ms = record.duration_ms
                     elif record.category == 'gpu_kernel_execution':
                         current_problem.gpu_kernel_execution_ms = record.duration_ms
 
@@ -643,7 +643,7 @@ def print_summary(timings: Dict[str, List[float]], problem_timings: List[Problem
     print(f"  Kernel execution (warmup, benchmark):   {kernel_time / 1000:.2f}s ({as_percentage(kernel_time, wall_clock_ms):.1f}%)")
     print()
 
-    cpu_ref_time = total_time_by_category.get('cpu_reference_gemm', 0)
+    cpu_ref_time = total_time_by_category.get('cpu_reference_gemm_wait', 0)
     gpu_exec_time = total_time_by_category.get('gpu_kernel_execution', 0)
     if cpu_ref_time > 0 and gpu_exec_time > 0:
         ratio = cpu_ref_time / gpu_exec_time
@@ -654,16 +654,16 @@ def print_summary(timings: Dict[str, List[float]], problem_timings: List[Problem
 
     # -- Top 10 slowest problems ----------------------------------------------
     if problem_timings:
-        print("TOP 10 SLOWEST PROBLEMS (by CPU reference time)")
+        print("TOP 10 SLOWEST PROBLEMS (by CPU reference wait time)")
         print("-" * TABLE_WIDTH)
         sorted_problems = sorted(
             problem_timings,
-            key=lambda p: p.cpu_reference_gemm_ms,
+            key=lambda p: p.cpu_reference_gemm_wait_ms,
             reverse=True,
         )[:10]
 
         # Compute column widths from data
-        headers = ["M", "N", "K", "Batch", "TypeA", "TypeD", "CPU Ref (ms)", "GPU (ms)"]
+        headers = ["M", "N", "K", "Batch", "TypeA", "TypeD", "CPU Wait (ms)", "GPU (ms)"]
         rows = []
         for p in sorted_problems:
             ctx = p.context
@@ -671,7 +671,7 @@ def print_summary(timings: Dict[str, List[float]], problem_timings: List[Problem
                 ctx.get('M', '?'), ctx.get('N', '?'),
                 ctx.get('K', '?'), ctx.get('batch', '?'),
                 ctx.get('typeA', '?'), ctx.get('typeD', '?'),
-                f"{p.cpu_reference_gemm_ms:.2f}", f"{p.gpu_kernel_execution_ms:.2f}",
+                f"{p.cpu_reference_gemm_wait_ms:.2f}", f"{p.gpu_kernel_execution_ms:.2f}",
             ])
         col_widths = [max(len(h), *(len(r[i]) for r in rows)) for i, h in enumerate(headers)]
 
@@ -699,13 +699,13 @@ def main():
 
     if args.csv:
         with open(args.csv, 'w') as f:
-            f.write("M,N,K,batch,typeA,typeD,cpu_data_init_ms,cpu_reference_gemm_ms,gpu_kernel_execution_ms\n")
+            f.write("M,N,K,batch,typeA,typeD,cpu_data_init_ms,cpu_reference_gemm_wait_ms,gpu_kernel_execution_ms\n")
             for p in problem_timings:
                 ctx = p.context
                 f.write(
                     f"{ctx.get('M', '')},{ctx.get('N', '')},{ctx.get('K', '')},"
                     f"{ctx.get('batch', '')},{ctx.get('typeA', '')},{ctx.get('typeD', '')},"
-                    f"{p.cpu_data_init_ms},{p.cpu_reference_gemm_ms},{p.gpu_kernel_execution_ms}\n"
+                    f"{p.cpu_data_init_ms},{p.cpu_reference_gemm_wait_ms},{p.gpu_kernel_execution_ms}\n"
                 )
         print(f"Detailed data written to: {args.csv}")
 
