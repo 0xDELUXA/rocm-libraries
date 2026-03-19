@@ -51,7 +51,11 @@ namespace rocRoller::KernelGraph
         std::tuple<std::vector<DeferredConnection>,
                    std::vector<DeferredConnection>,
                    std::map<int, int>>
-            addSwizzleLoadCT(KernelGraph& graph, ContextPtr context, int tag, NaryArgument arg);
+            addSwizzleLoadCT(KernelGraph&         graph,
+                             CommandParametersPtr params,
+                             ContextPtr           context,
+                             int                  tag,
+                             NaryArgument         arg);
 
         /**
          * @brief Get outer merge factors from macro tile.

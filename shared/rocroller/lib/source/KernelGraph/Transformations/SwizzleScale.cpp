@@ -229,10 +229,11 @@ namespace rocRoller
         std::tuple<std::vector<DeferredConnection>,
                    std::vector<DeferredConnection>,
                    std::map<int, int>>
-            SwizzleScaleDetail::addSwizzleLoadCT(KernelGraph& graph,
-                                                 ContextPtr   context,
-                                                 int          tag,
-                                                 NaryArgument arg)
+            SwizzleScaleDetail::addSwizzleLoadCT(KernelGraph&         graph,
+                                                 CommandParametersPtr params,
+                                                 ContextPtr           context,
+                                                 int                  tag,
+                                                 NaryArgument         arg)
         {
             AssertFatal(arg == NaryArgument::LHS_SCALE || arg == NaryArgument::RHS_SCALE);
 
@@ -276,6 +277,23 @@ namespace rocRoller
                         graph.coordinates.getElement(existingSDims[i])));
                 }
                 graph.coordinates.addElement(Split(), std::vector<int>{user}, sDims);
+
+                // SubDimensions are in physical fastest-first order, but MacroTile
+                // expects semantic M,N,K order. For transposed matrices, we need to
+                // swap the SubDimension indices to match MacroTile's semantic ordering.
+                if(params->transposeMemoryAccess[macTile.layoutType])
+                {
+                    if(sDims.size() == 2)
+                    {
+                        std::swap(sDims[0], sDims[1]);
+                    }
+                    else if(sDims.size() == 4)
+                    {
+                        // For pretiled: {PTXTile, PTYTile, X, Y} -> {PTYTile, PTXTile, Y, X}
+                        std::swap(sDims[0], sDims[1]);
+                        std::swap(sDims[2], sDims[3]);
+                    }
+                }
 
                 int nMac0, nMac1;
                 std::tie(nMac0, iMac0, nMac1, iMac1)
@@ -725,8 +743,11 @@ namespace rocRoller
             return mergeables;
         }
 
-        void
-            swizzleScaleLoads(KernelGraph& graph, ContextPtr context, NaryArgument arg, int loopTag)
+        void swizzleScaleLoads(KernelGraph&         graph,
+                               CommandParametersPtr params,
+                               ContextPtr           context,
+                               NaryArgument         arg,
+                               int                  loopTag)
         {
             auto scaleLoads = SwizzleScaleDetail::collectScaleLoadInfo(graph, arg, loopTag);
 
@@ -753,7 +774,7 @@ namespace rocRoller
             auto sampleLoad = mergeables.begin()->first;
 
             auto [loadConnections, exchangeConnections, unrollReindexMap]
-                = SwizzleScaleDetail::addSwizzleLoadCT(graph, context, sampleLoad, arg);
+                = SwizzleScaleDetail::addSwizzleLoadCT(graph, params, context, sampleLoad, arg);
 
             std::map<int, int> tileExchangeMap;
 
@@ -991,16 +1012,18 @@ namespace rocRoller
 
             for(auto const kLoopTag : kLoopTags)
             {
-                swizzleScaleLoads(newGraph, m_context, NaryArgument::LHS_SCALE, kLoopTag);
-                swizzleScaleLoads(newGraph, m_context, NaryArgument::RHS_SCALE, kLoopTag);
+                swizzleScaleLoads(newGraph, m_params, m_context, NaryArgument::LHS_SCALE, kLoopTag);
+                swizzleScaleLoads(newGraph, m_params, m_context, NaryArgument::RHS_SCALE, kLoopTag);
 
                 auto kLoopTailTags = findNamedLoopsBelow(kLoopTag, KLOOPTAIL);
                 AssertFatal(kLoopTailTags.size() <= 1, "Each KLoop can have at most one KLoopTail");
                 if(not kLoopTailTags.empty())
                 {
                     auto const kLoopTailTag = kLoopTailTags[0];
-                    swizzleScaleLoads(newGraph, m_context, NaryArgument::LHS_SCALE, kLoopTailTag);
-                    swizzleScaleLoads(newGraph, m_context, NaryArgument::RHS_SCALE, kLoopTailTag);
+                    swizzleScaleLoads(
+                        newGraph, m_params, m_context, NaryArgument::LHS_SCALE, kLoopTailTag);
+                    swizzleScaleLoads(
+                        newGraph, m_params, m_context, NaryArgument::RHS_SCALE, kLoopTailTag);
                 }
             }
 
