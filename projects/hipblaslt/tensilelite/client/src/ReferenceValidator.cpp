@@ -1062,7 +1062,7 @@ namespace TensileLite
 
                 std::shared_ptr<ProblemInputs> snapshot;
                 {
-                    ScopedTimer timer("cpu_data_init");
+                    ScopedTimer timer("precompute_data_init");
                     snapshot = m_dataInit->prepareCPUInputs(problems[i]);
                 }
 
@@ -1086,7 +1086,6 @@ namespace TensileLite
                 }
                 m_workerCv.notify_one();
             }
-
         }
 
         int ReferenceValidator::pendingCount() const

@@ -1769,7 +1769,12 @@ namespace TensileLite
 
                 if(m_problemDependentData)
                 {
-                    // Should this m_cEqualsD set in ContractionProblem or boost args?
+                    // Only re-initialize tensors whose init mode is actually
+                    // problem-dependent. Non-dependent tensors (e.g. Random)
+                    // must keep their construction-time data intact.
+                    if(!IsProblemDependent(m_vdata[i].init))
+                        continue;
+
                     for(auto& p : m_vdata[i].pristine)
                     {
                         // Only update when the descriptor changed

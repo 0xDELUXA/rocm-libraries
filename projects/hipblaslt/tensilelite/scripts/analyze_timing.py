@@ -99,7 +99,9 @@ TIMING_HIERARCHY = {
                     "validate_mismatch_printing": {},
                 },
             },
-            "cpu_reference_precompute": {},
+            "cpu_reference_precompute": {
+                "precompute_data_init": {},
+            },
             "gpu_input_preparation": {},
             "gpu_input_reset": {},
             "cancel_async_reset": {},

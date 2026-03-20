@@ -820,11 +820,6 @@ namespace TensileLite
                 return m_curBoundsCheck;
             }
 
-            bool hasProblemDependentData() const
-            {
-                return m_problemDependentData;
-            }
-
             virtual bool needMoreBenchmarkRuns() const override
             {
                 return false;
