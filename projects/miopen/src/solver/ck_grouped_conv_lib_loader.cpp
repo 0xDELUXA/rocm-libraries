@@ -197,26 +197,18 @@ bool CKGroupedConvLibLoader::LoadSymbols()
     LOAD_SYM(kernel_list_free_fn_, ckgrpconv_kernel_list_free);
     LOAD_SYM(solution_free_fn_, ckgrpconv_solution_free);
 
-    // FWD
-    LOAD_SYM(fwd_fill_valid_kernels_fn_, ckgrpconv_fwd_fill_valid_kernels);
-    LOAD_SYM(fwd_is_applicable_fn_, ckgrpconv_fwd_is_applicable);
-    LOAD_SYM(fwd_is_args_supported_fn_, ckgrpconv_fwd_is_args_supported);
-    LOAD_SYM(fwd_get_workspace_size_fn_, ckgrpconv_fwd_get_workspace_size);
-    LOAD_SYM(fwd_get_solution_fn_, ckgrpconv_fwd_get_solution);
+    // Per-direction symbols
+#define LOAD_DIR_SYMS(idx, prefix)                                                          \
+    LOAD_SYM(dir_fns_[idx].fill_valid_kernels, ckgrpconv_##prefix##_fill_valid_kernels);    \
+    LOAD_SYM(dir_fns_[idx].is_applicable, ckgrpconv_##prefix##_is_applicable);              \
+    LOAD_SYM(dir_fns_[idx].is_args_supported, ckgrpconv_##prefix##_is_args_supported);      \
+    LOAD_SYM(dir_fns_[idx].get_workspace_size, ckgrpconv_##prefix##_get_workspace_size);    \
+    LOAD_SYM(dir_fns_[idx].get_solution, ckgrpconv_##prefix##_get_solution)
 
-    // BWD
-    LOAD_SYM(bwd_fill_valid_kernels_fn_, ckgrpconv_bwd_fill_valid_kernels);
-    LOAD_SYM(bwd_is_applicable_fn_, ckgrpconv_bwd_is_applicable);
-    LOAD_SYM(bwd_is_args_supported_fn_, ckgrpconv_bwd_is_args_supported);
-    LOAD_SYM(bwd_get_workspace_size_fn_, ckgrpconv_bwd_get_workspace_size);
-    LOAD_SYM(bwd_get_solution_fn_, ckgrpconv_bwd_get_solution);
-
-    // WRW
-    LOAD_SYM(wrw_fill_valid_kernels_fn_, ckgrpconv_wrw_fill_valid_kernels);
-    LOAD_SYM(wrw_is_applicable_fn_, ckgrpconv_wrw_is_applicable);
-    LOAD_SYM(wrw_is_args_supported_fn_, ckgrpconv_wrw_is_args_supported);
-    LOAD_SYM(wrw_get_workspace_size_fn_, ckgrpconv_wrw_get_workspace_size);
-    LOAD_SYM(wrw_get_solution_fn_, ckgrpconv_wrw_get_solution);
+    LOAD_DIR_SYMS(0, fwd);
+    LOAD_DIR_SYMS(1, bwd);
+    LOAD_DIR_SYMS(2, wrw);
+#undef LOAD_DIR_SYMS
 
 #undef LOAD_SYM
     return true;
@@ -250,145 +242,61 @@ ConvSolution CKGroupedConvLibLoader::ExtractSolution(ConvSolution* ptr) const
     return result;
 }
 
-// -- FWD wrappers -------------------------------------------------------------
+// -- Direction-parameterized wrappers -----------------------------------------
 
-std::vector<std::string> CKGroupedConvLibLoader::fwd_fill_valid_kernels(
-    const conv::ProblemDescription& problem, miopenDataType_t dtype, bool use_tf32) const
+std::vector<std::string> CKGroupedConvLibLoader::fill_valid_kernels(
+    CKConvDirection dir,
+    const conv::ProblemDescription& problem,
+    miopenDataType_t dtype,
+    bool use_tf32) const
 {
     if(!IsLoaded())
         return {};
-    return ExtractKernelList(fwd_fill_valid_kernels_fn_(&problem, dtype, use_tf32));
+    return ExtractKernelList(
+        dir_fns_[static_cast<int>(dir)].fill_valid_kernels(&problem, dtype, use_tf32));
 }
 
-bool CKGroupedConvLibLoader::fwd_is_applicable(const conv::ProblemDescription& problem,
+bool CKGroupedConvLibLoader::is_applicable(CKConvDirection dir,
+                                           const conv::ProblemDescription& problem,
+                                           miopenDataType_t dtype,
+                                           bool use_tf32) const
+{
+    if(!IsLoaded())
+        return false;
+    return dir_fns_[static_cast<int>(dir)].is_applicable(&problem, dtype, use_tf32);
+}
+
+bool CKGroupedConvLibLoader::is_args_supported(CKConvDirection dir,
+                                               const conv::ProblemDescription& problem,
+                                               const std::string& kernel_id,
                                                miopenDataType_t dtype,
                                                bool use_tf32) const
 {
     if(!IsLoaded())
         return false;
-    return fwd_is_applicable_fn_(&problem, dtype, use_tf32);
+    return dir_fns_[static_cast<int>(dir)].is_args_supported(
+        &problem, kernel_id.c_str(), dtype, use_tf32);
 }
 
-bool CKGroupedConvLibLoader::fwd_is_args_supported(const conv::ProblemDescription& problem,
-                                                   const std::string& kernel_id,
-                                                   miopenDataType_t dtype,
-                                                   bool use_tf32) const
-{
-    if(!IsLoaded())
-        return false;
-    return fwd_is_args_supported_fn_(&problem, kernel_id.c_str(), dtype, use_tf32);
-}
-
-size_t CKGroupedConvLibLoader::fwd_get_workspace_size(const conv::ProblemDescription& problem,
-                                                      miopenDataType_t dtype) const
+size_t CKGroupedConvLibLoader::get_workspace_size(CKConvDirection dir,
+                                                  const conv::ProblemDescription& problem,
+                                                  miopenDataType_t dtype) const
 {
     if(!IsLoaded())
         return 0;
-    return fwd_get_workspace_size_fn_(&problem, dtype);
+    return dir_fns_[static_cast<int>(dir)].get_workspace_size(&problem, dtype);
 }
 
-ConvSolution CKGroupedConvLibLoader::fwd_get_solution(const ExecutionContext& ctx,
-                                                      const conv::ProblemDescription& problem,
-                                                      const std::string& kernel_id,
-                                                      bool use_tf32) const
+ConvSolution CKGroupedConvLibLoader::get_solution(CKConvDirection dir,
+                                                  const ExecutionContext& ctx,
+                                                  const conv::ProblemDescription& problem,
+                                                  const std::string& kernel_id,
+                                                  bool use_tf32) const
 {
     if(!IsLoaded())
         return ConvSolution{miopenStatusInternalError};
-    return ExtractSolution(fwd_get_solution_fn_(&ctx, &problem, kernel_id.c_str(), use_tf32));
-}
-
-// -- BWD wrappers -------------------------------------------------------------
-
-std::vector<std::string> CKGroupedConvLibLoader::bwd_fill_valid_kernels(
-    const conv::ProblemDescription& problem, miopenDataType_t dtype, bool use_tf32) const
-{
-    if(!IsLoaded())
-        return {};
-    return ExtractKernelList(bwd_fill_valid_kernels_fn_(&problem, dtype, use_tf32));
-}
-
-bool CKGroupedConvLibLoader::bwd_is_applicable(const conv::ProblemDescription& problem,
-                                               miopenDataType_t dtype,
-                                               bool use_tf32) const
-{
-    if(!IsLoaded())
-        return false;
-    return bwd_is_applicable_fn_(&problem, dtype, use_tf32);
-}
-
-bool CKGroupedConvLibLoader::bwd_is_args_supported(const conv::ProblemDescription& problem,
-                                                   const std::string& kernel_id,
-                                                   miopenDataType_t dtype,
-                                                   bool use_tf32) const
-{
-    if(!IsLoaded())
-        return false;
-    return bwd_is_args_supported_fn_(&problem, kernel_id.c_str(), dtype, use_tf32);
-}
-
-size_t CKGroupedConvLibLoader::bwd_get_workspace_size(const conv::ProblemDescription& problem,
-                                                      miopenDataType_t dtype) const
-{
-    if(!IsLoaded())
-        return 0;
-    return bwd_get_workspace_size_fn_(&problem, dtype);
-}
-
-ConvSolution CKGroupedConvLibLoader::bwd_get_solution(const ExecutionContext& ctx,
-                                                      const conv::ProblemDescription& problem,
-                                                      const std::string& kernel_id,
-                                                      bool use_tf32) const
-{
-    if(!IsLoaded())
-        return ConvSolution{miopenStatusInternalError};
-    return ExtractSolution(bwd_get_solution_fn_(&ctx, &problem, kernel_id.c_str(), use_tf32));
-}
-
-// -- WRW wrappers -------------------------------------------------------------
-
-std::vector<std::string> CKGroupedConvLibLoader::wrw_fill_valid_kernels(
-    const conv::ProblemDescription& problem, miopenDataType_t dtype, bool use_tf32) const
-{
-    if(!IsLoaded())
-        return {};
-    return ExtractKernelList(wrw_fill_valid_kernels_fn_(&problem, dtype, use_tf32));
-}
-
-bool CKGroupedConvLibLoader::wrw_is_applicable(const conv::ProblemDescription& problem,
-                                               miopenDataType_t dtype,
-                                               bool use_tf32) const
-{
-    if(!IsLoaded())
-        return false;
-    return wrw_is_applicable_fn_(&problem, dtype, use_tf32);
-}
-
-bool CKGroupedConvLibLoader::wrw_is_args_supported(const conv::ProblemDescription& problem,
-                                                   const std::string& kernel_id,
-                                                   miopenDataType_t dtype,
-                                                   bool use_tf32) const
-{
-    if(!IsLoaded())
-        return false;
-    return wrw_is_args_supported_fn_(&problem, kernel_id.c_str(), dtype, use_tf32);
-}
-
-size_t CKGroupedConvLibLoader::wrw_get_workspace_size(const conv::ProblemDescription& problem,
-                                                      miopenDataType_t dtype) const
-{
-    if(!IsLoaded())
-        return 0;
-    return wrw_get_workspace_size_fn_(&problem, dtype);
-}
-
-ConvSolution CKGroupedConvLibLoader::wrw_get_solution(const ExecutionContext& ctx,
-                                                      const conv::ProblemDescription& problem,
-                                                      const std::string& kernel_id,
-                                                      bool use_tf32) const
-{
-    if(!IsLoaded())
-        return ConvSolution{miopenStatusInternalError};
-    return ExtractSolution(wrw_get_solution_fn_(&ctx, &problem, kernel_id.c_str(), use_tf32));
+    return ExtractSolution(
+        dir_fns_[static_cast<int>(dir)].get_solution(&ctx, &problem, kernel_id.c_str(), use_tf32));
 }
 
 } // namespace solver

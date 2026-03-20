@@ -36,9 +36,6 @@
 #endif
 #include <miopen/solver/implicitgemm_ck_util.hpp>
 #include <miopen/solver/ck_grouped_conv_lib_loader.hpp>
-#if MIOPEN_BACKEND_HIP
-#include <hip/hip_runtime_api.h>
-#endif
 MIOPEN_DECLARE_ENV_VAR_BOOL(MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS)
 MIOPEN_DECLARE_ENV_VAR_BOOL(MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS_AI_HEUR)
 MIOPEN_DECLARE_ENV_VAR_BOOL(MIOPEN_DEBUG_CK_DEFAULT_KERNELS)
@@ -48,23 +45,6 @@ namespace solver {
 namespace conv {
 
 using ProblemDescription = miopen::conv::ProblemDescription;
-
-namespace {
-std::string GetCurrentDeviceName()
-{
-#if MIOPEN_BACKEND_HIP
-    int device = 0;
-    if(hipGetDevice(&device) != hipSuccess)
-        return {};
-    hipDeviceProp_t props{};
-    if(hipGetDeviceProperties(&props, device) != hipSuccess)
-        return {};
-    return std::string(props.gcnArchName);
-#else
-    return {};
-#endif
-}
-} // namespace
 
 #if MIOPEN_ENABLE_AI_KERNEL_TUNING
 static std::vector<std::string> GetKernelAsTokens(const std::string& kernel)
@@ -197,11 +177,11 @@ bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::RunParameterPredictionModel
 
     if(try_tf32)
     {
-        valid_kernels = loader.fwd_fill_valid_kernels(problem, data_type, true);
+        valid_kernels = loader.fill_valid_kernels(CKConvDirection::Fwd, problem, data_type, true);
     }
     if(valid_kernels.empty())
     {
-        valid_kernels = loader.fwd_fill_valid_kernels(problem, data_type, false);
+        valid_kernels = loader.fill_valid_kernels(CKConvDirection::Fwd, problem, data_type, false);
     }
 
     static const std::string& arch = ctx.GetStream().GetDeviceName();
@@ -361,12 +341,12 @@ void PerformanceConfigHipImplicitGemmGroupFwdXdlops::HeuristicInit(
     if(try_tf32)
     {
         use_tf32      = true;
-        valid_kernels = loader.fwd_fill_valid_kernels(problem, data_type, true);
+        valid_kernels = loader.fill_valid_kernels(CKConvDirection::Fwd, problem, data_type, true);
     }
     if(valid_kernels.empty())
     {
         use_tf32      = false;
-        valid_kernels = loader.fwd_fill_valid_kernels(problem, data_type, false);
+        valid_kernels = loader.fill_valid_kernels(CKConvDirection::Fwd, problem, data_type, false);
     }
 
     if(!valid_kernels.empty())
@@ -412,7 +392,7 @@ bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::IsValid(
         return false;
 
     auto data_type = problem.GetInDataType();
-    return loader.fwd_is_args_supported(problem, kernel_id, data_type, use_tf32);
+    return loader.is_args_supported(CKConvDirection::Fwd, problem, kernel_id, data_type, use_tf32);
 }
 
 bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::operator==(
@@ -484,10 +464,10 @@ bool ConvHipImplicitGemmGroupFwdXdlops::IsApplicable(const ExecutionContext& ctx
     auto data_type = problem.GetInDataType();
     bool try_tf32  = (data_type == miopenFloat) && problem.UseTF32();
 
-    if(try_tf32 && loader.fwd_is_applicable(problem, data_type, true))
+    if(try_tf32 && loader.is_applicable(CKConvDirection::Fwd, problem, data_type, true))
         return true;
 
-    return loader.fwd_is_applicable(problem, data_type, false);
+    return loader.is_applicable(CKConvDirection::Fwd, problem, data_type, false);
 }
 
 ConvSolution ConvHipImplicitGemmGroupFwdXdlops::GetSolution(
@@ -499,7 +479,7 @@ ConvSolution ConvHipImplicitGemmGroupFwdXdlops::GetSolution(
     if(!loader.IsLoaded())
         return {};
 
-    return loader.fwd_get_solution(ctx, problem, config.kernel_id, config.UseTF32());
+    return loader.get_solution(CKConvDirection::Fwd, ctx, problem, config.kernel_id, config.UseTF32());
 }
 
 } // namespace conv

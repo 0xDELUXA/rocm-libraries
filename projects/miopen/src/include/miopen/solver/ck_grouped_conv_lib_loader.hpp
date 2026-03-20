@@ -12,6 +12,10 @@
 #include <unordered_map>
 #include <vector>
 
+#if MIOPEN_BACKEND_HIP
+#include <hip/hip_runtime_api.h>
+#endif
+
 struct CKKernelListHandle;
 
 namespace miopen {
@@ -22,6 +26,25 @@ struct ProblemDescription;
 namespace solver {
 struct ConvSolution;
 
+enum class CKConvDirection { Fwd = 0, Bwd = 1, Wrw = 2 };
+
+/// Query the HIP runtime for the current device's architecture name.
+/// Returns an empty string on failure or when not using the HIP backend.
+inline std::string GetCurrentDeviceName()
+{
+#if MIOPEN_BACKEND_HIP
+    int device = 0;
+    if(hipGetDevice(&device) != hipSuccess)
+        return {};
+    hipDeviceProp_t props{};
+    if(hipGetDeviceProperties(&props, device) != hipSuccess)
+        return {};
+    return std::string(props.gcnArchName);
+#else
+    return {};
+#endif
+}
+
 class CKGroupedConvLibLoader
 {
 public:
@@ -31,80 +54,37 @@ public:
 
     MIOPEN_INTERNALS_EXPORT bool IsLoaded() const { return loaded_; }
 
-    // -- FWD wrappers ---------------------------------------------------------
+    // -- Direction-parameterized wrappers -------------------------------------
     MIOPEN_INTERNALS_EXPORT std::vector<std::string>
-    fwd_fill_valid_kernels(const miopen::conv::ProblemDescription& problem,
-                           miopenDataType_t dtype,
-                           bool use_tf32) const;
-
-    MIOPEN_INTERNALS_EXPORT bool fwd_is_applicable(const miopen::conv::ProblemDescription& problem,
-                                                   miopenDataType_t dtype,
-                                                   bool use_tf32) const;
+    fill_valid_kernels(CKConvDirection dir,
+                       const miopen::conv::ProblemDescription& problem,
+                       miopenDataType_t dtype,
+                       bool use_tf32) const;
 
     MIOPEN_INTERNALS_EXPORT bool
-    fwd_is_args_supported(const miopen::conv::ProblemDescription& problem,
-                          const std::string& kernel_id,
-                          miopenDataType_t dtype,
-                          bool use_tf32) const;
-
-    MIOPEN_INTERNALS_EXPORT size_t fwd_get_workspace_size(
-        const miopen::conv::ProblemDescription& problem, miopenDataType_t dtype) const;
-
-    MIOPEN_INTERNALS_EXPORT ConvSolution
-    fwd_get_solution(const ExecutionContext& ctx,
-                     const miopen::conv::ProblemDescription& problem,
-                     const std::string& kernel_id,
-                     bool use_tf32) const;
-
-    // -- BWD wrappers ---------------------------------------------------------
-    MIOPEN_INTERNALS_EXPORT std::vector<std::string>
-    bwd_fill_valid_kernels(const miopen::conv::ProblemDescription& problem,
-                           miopenDataType_t dtype,
-                           bool use_tf32) const;
-
-    MIOPEN_INTERNALS_EXPORT bool bwd_is_applicable(const miopen::conv::ProblemDescription& problem,
-                                                   miopenDataType_t dtype,
-                                                   bool use_tf32) const;
+    is_applicable(CKConvDirection dir,
+                  const miopen::conv::ProblemDescription& problem,
+                  miopenDataType_t dtype,
+                  bool use_tf32) const;
 
     MIOPEN_INTERNALS_EXPORT bool
-    bwd_is_args_supported(const miopen::conv::ProblemDescription& problem,
-                          const std::string& kernel_id,
-                          miopenDataType_t dtype,
-                          bool use_tf32) const;
+    is_args_supported(CKConvDirection dir,
+                      const miopen::conv::ProblemDescription& problem,
+                      const std::string& kernel_id,
+                      miopenDataType_t dtype,
+                      bool use_tf32) const;
 
-    MIOPEN_INTERNALS_EXPORT size_t bwd_get_workspace_size(
-        const miopen::conv::ProblemDescription& problem, miopenDataType_t dtype) const;
-
-    MIOPEN_INTERNALS_EXPORT ConvSolution
-    bwd_get_solution(const ExecutionContext& ctx,
-                     const miopen::conv::ProblemDescription& problem,
-                     const std::string& kernel_id,
-                     bool use_tf32) const;
-
-    // -- WRW wrappers ---------------------------------------------------------
-    MIOPEN_INTERNALS_EXPORT std::vector<std::string>
-    wrw_fill_valid_kernels(const miopen::conv::ProblemDescription& problem,
-                           miopenDataType_t dtype,
-                           bool use_tf32) const;
-
-    MIOPEN_INTERNALS_EXPORT bool wrw_is_applicable(const miopen::conv::ProblemDescription& problem,
-                                                   miopenDataType_t dtype,
-                                                   bool use_tf32) const;
-
-    MIOPEN_INTERNALS_EXPORT bool
-    wrw_is_args_supported(const miopen::conv::ProblemDescription& problem,
-                          const std::string& kernel_id,
-                          miopenDataType_t dtype,
-                          bool use_tf32) const;
-
-    MIOPEN_INTERNALS_EXPORT size_t wrw_get_workspace_size(
-        const miopen::conv::ProblemDescription& problem, miopenDataType_t dtype) const;
+    MIOPEN_INTERNALS_EXPORT size_t
+    get_workspace_size(CKConvDirection dir,
+                       const miopen::conv::ProblemDescription& problem,
+                       miopenDataType_t dtype) const;
 
     MIOPEN_INTERNALS_EXPORT ConvSolution
-    wrw_get_solution(const ExecutionContext& ctx,
-                     const miopen::conv::ProblemDescription& problem,
-                     const std::string& kernel_id,
-                     bool use_tf32) const;
+    get_solution(CKConvDirection dir,
+                 const ExecutionContext& ctx,
+                 const miopen::conv::ProblemDescription& problem,
+                 const std::string& kernel_id,
+                 bool use_tf32) const;
 
     ~CKGroupedConvLibLoader();
 
@@ -161,26 +141,16 @@ private:
 
     SolutionFreeFn solution_free_fn_ = nullptr;
 
-    // FWD
-    FillValidKernelsFn fwd_fill_valid_kernels_fn_ = nullptr;
-    IsApplicableFn fwd_is_applicable_fn_          = nullptr;
-    IsArgsSupportedFn fwd_is_args_supported_fn_   = nullptr;
-    GetWorkspaceSizeFn fwd_get_workspace_size_fn_ = nullptr;
-    GetSolutionFn fwd_get_solution_fn_            = nullptr;
+    struct DirectionFns
+    {
+        FillValidKernelsFn fill_valid_kernels = nullptr;
+        IsApplicableFn is_applicable          = nullptr;
+        IsArgsSupportedFn is_args_supported   = nullptr;
+        GetWorkspaceSizeFn get_workspace_size = nullptr;
+        GetSolutionFn get_solution            = nullptr;
+    };
 
-    // BWD
-    FillValidKernelsFn bwd_fill_valid_kernels_fn_ = nullptr;
-    IsApplicableFn bwd_is_applicable_fn_          = nullptr;
-    IsArgsSupportedFn bwd_is_args_supported_fn_   = nullptr;
-    GetWorkspaceSizeFn bwd_get_workspace_size_fn_ = nullptr;
-    GetSolutionFn bwd_get_solution_fn_            = nullptr;
-
-    // WRW
-    FillValidKernelsFn wrw_fill_valid_kernels_fn_ = nullptr;
-    IsApplicableFn wrw_is_applicable_fn_          = nullptr;
-    IsArgsSupportedFn wrw_is_args_supported_fn_   = nullptr;
-    GetWorkspaceSizeFn wrw_get_workspace_size_fn_ = nullptr;
-    GetSolutionFn wrw_get_solution_fn_            = nullptr;
+    DirectionFns dir_fns_[3]; // indexed by static_cast<int>(CKConvDirection)
 
     // Helper: extract kernel list from handle
     std::vector<std::string> ExtractKernelList(::CKKernelListHandle* handle) const;

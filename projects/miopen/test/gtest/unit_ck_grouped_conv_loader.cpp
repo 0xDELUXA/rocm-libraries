@@ -13,6 +13,8 @@
 #include <hip/hip_runtime.h>
 #endif
 
+using miopen::solver::CKConvDirection;
+
 namespace {
 
 #if MIOPEN_BACKEND_HIP
@@ -84,7 +86,8 @@ TEST(GPU_CKGroupedConvLoader_FP16, LoaderFillsValidKernels)
         GTEST_SKIP() << "CK grouped conv library not installed for " << device_name;
 
     const auto problem = MakeGroupedConvProblem();
-    const auto kernels = loader.fwd_fill_valid_kernels(problem, miopenHalf, false);
+    const auto kernels =
+        loader.fill_valid_kernels(CKConvDirection::Fwd, problem, miopenHalf, false);
 
     EXPECT_FALSE(kernels.empty()) << "Expected at least one valid CK grouped conv kernel for "
                                   << device_name;
@@ -140,24 +143,30 @@ TEST(CPU_CKGroupedConvLoader_NONE, LoaderReturnsEmptyOnFailure)
     miopen::ExecutionContext ctx;
 
     // All wrappers should return safe defaults when the library is not loaded
-    EXPECT_TRUE(loader.fwd_fill_valid_kernels(problem, miopenHalf, false).empty());
-    EXPECT_FALSE(loader.fwd_is_applicable(problem, miopenHalf, false));
-    EXPECT_FALSE(loader.fwd_is_args_supported(problem, "dummy_kernel", miopenHalf, false));
-    EXPECT_EQ(loader.fwd_get_workspace_size(problem, miopenHalf), 0u);
-    EXPECT_EQ(loader.fwd_get_solution(ctx, problem, "dummy", false).status,
+    EXPECT_TRUE(
+        loader.fill_valid_kernels(CKConvDirection::Fwd, problem, miopenHalf, false).empty());
+    EXPECT_FALSE(loader.is_applicable(CKConvDirection::Fwd, problem, miopenHalf, false));
+    EXPECT_FALSE(
+        loader.is_args_supported(CKConvDirection::Fwd, problem, "dummy_kernel", miopenHalf, false));
+    EXPECT_EQ(loader.get_workspace_size(CKConvDirection::Fwd, problem, miopenHalf), 0u);
+    EXPECT_EQ(loader.get_solution(CKConvDirection::Fwd, ctx, problem, "dummy", false).status,
               miopenStatusInternalError);
 
-    EXPECT_TRUE(loader.bwd_fill_valid_kernels(problem, miopenHalf, false).empty());
-    EXPECT_FALSE(loader.bwd_is_applicable(problem, miopenHalf, false));
-    EXPECT_FALSE(loader.bwd_is_args_supported(problem, "dummy_kernel", miopenHalf, false));
-    EXPECT_EQ(loader.bwd_get_workspace_size(problem, miopenHalf), 0u);
-    EXPECT_EQ(loader.bwd_get_solution(ctx, problem, "dummy", false).status,
+    EXPECT_TRUE(
+        loader.fill_valid_kernels(CKConvDirection::Bwd, problem, miopenHalf, false).empty());
+    EXPECT_FALSE(loader.is_applicable(CKConvDirection::Bwd, problem, miopenHalf, false));
+    EXPECT_FALSE(
+        loader.is_args_supported(CKConvDirection::Bwd, problem, "dummy_kernel", miopenHalf, false));
+    EXPECT_EQ(loader.get_workspace_size(CKConvDirection::Bwd, problem, miopenHalf), 0u);
+    EXPECT_EQ(loader.get_solution(CKConvDirection::Bwd, ctx, problem, "dummy", false).status,
               miopenStatusInternalError);
 
-    EXPECT_TRUE(loader.wrw_fill_valid_kernels(problem, miopenHalf, false).empty());
-    EXPECT_FALSE(loader.wrw_is_applicable(problem, miopenHalf, false));
-    EXPECT_FALSE(loader.wrw_is_args_supported(problem, "dummy_kernel", miopenHalf, false));
-    EXPECT_EQ(loader.wrw_get_workspace_size(problem, miopenHalf), 0u);
-    EXPECT_EQ(loader.wrw_get_solution(ctx, problem, "dummy", false).status,
+    EXPECT_TRUE(
+        loader.fill_valid_kernels(CKConvDirection::Wrw, problem, miopenHalf, false).empty());
+    EXPECT_FALSE(loader.is_applicable(CKConvDirection::Wrw, problem, miopenHalf, false));
+    EXPECT_FALSE(
+        loader.is_args_supported(CKConvDirection::Wrw, problem, "dummy_kernel", miopenHalf, false));
+    EXPECT_EQ(loader.get_workspace_size(CKConvDirection::Wrw, problem, miopenHalf), 0u);
+    EXPECT_EQ(loader.get_solution(CKConvDirection::Wrw, ctx, problem, "dummy", false).status,
               miopenStatusInternalError);
 }
