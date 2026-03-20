@@ -21,7 +21,6 @@ using miopen::conv::ProblemDescription;
 using miopen::solver::ConvSolution;
 using miopen::solver::FillValidKernelsIDs;
 using miopen::solver::GetCKSplitkMaxWorkspaceSize;
-using miopen::solver::GetWorkspaceSizeLayoutTransformConv;
 using miopen::solver::IsCKApplicable;
 using miopen::solver::IsCKArgsSupported;
 using miopen::solver::InitInvokerFactoryBwdNCHW;
@@ -333,7 +332,7 @@ extern "C" size_t ckgrpconv_bwd_get_workspace_size(
             break;
         default: return 0;
         }
-        return GetWorkspaceSizeLayoutTransformConv(*problem, ck_ws_size);
+        return ck_ws_size;
     }
     catch(...)
     {

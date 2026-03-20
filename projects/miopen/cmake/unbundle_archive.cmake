@@ -167,7 +167,14 @@ if(thin_objs)
     list(LENGTH thin_objs count)
     message(STATUS "Created ${OUTPUT} with ${count} objects")
 else()
-    message(WARNING "No objects found for ${ARCH} in ${FAT_ARCHIVE}")
+    message(WARNING "No objects found for ${ARCH} in ${FAT_ARCHIVE}, creating empty archive")
+    # Create an empty archive so the build does not fail with a missing output.
+    execute_process(
+        COMMAND ${AR} rcs "${OUTPUT}"
+        RESULT_VARIABLE ar_empty_result)
+    if(NOT ar_empty_result EQUAL 0)
+        message(FATAL_ERROR "Failed to create empty archive ${OUTPUT}")
+    endif()
 endif()
 
 # Cleanup

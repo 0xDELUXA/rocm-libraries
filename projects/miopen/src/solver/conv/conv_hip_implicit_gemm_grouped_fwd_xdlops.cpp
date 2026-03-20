@@ -36,6 +36,9 @@
 #endif
 #include <miopen/solver/implicitgemm_ck_util.hpp>
 #include <miopen/solver/ck_grouped_conv_lib_loader.hpp>
+#if MIOPEN_BACKEND_HIP
+#include <hip/hip_runtime_api.h>
+#endif
 MIOPEN_DECLARE_ENV_VAR_BOOL(MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS)
 MIOPEN_DECLARE_ENV_VAR_BOOL(MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS_AI_HEUR)
 MIOPEN_DECLARE_ENV_VAR_BOOL(MIOPEN_DEBUG_CK_DEFAULT_KERNELS)
@@ -45,6 +48,23 @@ namespace solver {
 namespace conv {
 
 using ProblemDescription = miopen::conv::ProblemDescription;
+
+namespace {
+std::string GetCurrentDeviceName()
+{
+#if MIOPEN_BACKEND_HIP
+    int device = 0;
+    if(hipGetDevice(&device) != hipSuccess)
+        return {};
+    hipDeviceProp_t props{};
+    if(hipGetDeviceProperties(&props, device) != hipSuccess)
+        return {};
+    return std::string(props.gcnArchName);
+#else
+    return {};
+#endif
+}
+} // namespace
 
 #if MIOPEN_ENABLE_AI_KERNEL_TUNING
 static std::vector<std::string> GetKernelAsTokens(const std::string& kernel)
@@ -355,6 +375,9 @@ void PerformanceConfigHipImplicitGemmGroupFwdXdlops::HeuristicInit(
         index     = 0;
         kernel_id = valid_kernels[index];
     }
+
+    if(!env::disabled(MIOPEN_DEBUG_CK_DEFAULT_KERNELS))
+        DefaultKernelFromList(ctx);
 }
 
 bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::SetNextValue(
@@ -385,11 +408,12 @@ bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::IsValidValue() const
 bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::IsValid(
     [[maybe_unused]] const ProblemDescription& problem) const
 {
-    // Without an ExecutionContext we cannot obtain the device name to call the
-    // loader.  Rely on the kernel_id having been validated at the point it was
-    // stored (during HeuristicInit/Search).  Full device-level validation
-    // happens in IsApplicable and GetSolution where ctx is available.
-    return !kernel_id.empty();
+    const auto& loader = miopen::solver::CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
+    if(!loader.IsLoaded())
+        return false;
+
+    auto data_type = problem.GetInDataType();
+    return loader.fwd_is_args_supported(problem, kernel_id, data_type, use_tf32);
 }
 
 bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::operator==(

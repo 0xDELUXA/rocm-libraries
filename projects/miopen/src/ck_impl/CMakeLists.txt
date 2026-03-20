@@ -90,8 +90,8 @@ foreach(gpu_target IN LISTS GPU_TARGETS)
         ${PROJECT_BINARY_DIR}/include
     )
 
-    # HIP runtime
-    target_link_libraries(${lib_name} PRIVATE hip::host)
+    # HIP runtime (hip::device required for compiling CK device code)
+    target_link_libraries(${lib_name} PRIVATE hip::device)
 
     # Link against MIOpen for shared types (ConvSolution, InvokerFactory, etc.)
     target_link_libraries(${lib_name} PRIVATE MIOpen)

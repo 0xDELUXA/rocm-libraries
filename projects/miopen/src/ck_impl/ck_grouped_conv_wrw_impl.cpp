@@ -189,11 +189,11 @@ struct CKArgs
 };
 
 template <typename DataType>
-bool CheckCKApplicability(const ProblemDescription& problem)
+bool CheckCKApplicability(const ProblemDescription& problem, bool use_tf32)
 {
     if constexpr(std::is_same_v<DataType, float>)
     {
-        if(problem.UseTF32() &&
+        if(use_tf32 &&
            miopen::solver::IsCKApplicable<DeviceOpGWrwPtrs<DataType, ck::tf32_t>, CKArgs>(problem))
         {
             return true;
@@ -287,13 +287,12 @@ bool ckgrpconv_wrw_is_applicable(
 {
     try
     {
-        (void)use_tf32;
         switch(data_type)
         {
-        case miopenHalf: return CheckCKApplicability<ck::half_t>(*problem);
-        case miopenFloat: return CheckCKApplicability<float>(*problem);
-        case miopenInt8: return CheckCKApplicability<int8_t>(*problem);
-        case miopenBFloat16: return CheckCKApplicability<ck::bhalf_t>(*problem);
+        case miopenHalf: return CheckCKApplicability<ck::half_t>(*problem, use_tf32);
+        case miopenFloat: return CheckCKApplicability<float>(*problem, use_tf32);
+        case miopenInt8: return CheckCKApplicability<int8_t>(*problem, use_tf32);
+        case miopenBFloat16: return CheckCKApplicability<ck::bhalf_t>(*problem, use_tf32);
         case miopenInt64:
         case miopenInt32:
         case miopenFloat8_fnuz:

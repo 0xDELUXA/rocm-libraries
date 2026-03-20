@@ -9,6 +9,7 @@
 #include <miopen/env.hpp>
 #include <miopen/logger.hpp>
 
+#include <cstdlib>
 #include <dlfcn.h>
 
 MIOPEN_DECLARE_ENV_VAR_STR(MIOPEN_CK_LIB_PATH)
@@ -35,12 +36,17 @@ std::string MakeLibraryFilename(const std::string& device_name)
 }
 
 /// Resolve the directory containing libMIOpen.so via dladdr.
+/// Uses realpath to canonicalize symlinks so per-arch CK libraries
+/// are found even when libMIOpen.so is accessed through a symlink.
 std::string GetMIOpenLibDir()
 {
     Dl_info info;
     if(dladdr(reinterpret_cast<void*>(miopenCreate), &info) != 0)
     {
-        std::string path(info.dli_fname);
+        // Canonicalize to resolve symlinks (e.g. /opt/rocm/lib -> /opt/rocm-X.Y.Z/lib)
+        char* real = realpath(info.dli_fname, nullptr);
+        std::string path(real ? real : info.dli_fname);
+        free(real);
         auto slash = path.rfind('/');
         if(slash != std::string::npos)
             return path.substr(0, slash);

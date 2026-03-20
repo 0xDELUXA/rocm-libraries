@@ -367,7 +367,7 @@ if( MIOPEN_BACKEND STREQUAL "HIP" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN_B
             set(CK_FAT_ARCHIVE_TARGET device_conv_operations)
             set(CK_FAT_ARCHIVE_PATH $<TARGET_FILE:device_conv_operations>)
         else()
-            get_target_property(CK_FAT_ARCHIVE_PATH composable_kernel::device_conv_operations IMPORTED_LOCATION)
+            set(CK_FAT_ARCHIVE_PATH $<TARGET_FILE:composable_kernel::device_conv_operations>)
             set(CK_FAT_ARCHIVE_TARGET composable_kernel::device_conv_operations)
         endif()
 

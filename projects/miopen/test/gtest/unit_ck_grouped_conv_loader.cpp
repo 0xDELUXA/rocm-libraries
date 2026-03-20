@@ -4,7 +4,9 @@
 #include <gtest/gtest.h>
 #include <miopen/solver/ck_grouped_conv_lib_loader.hpp>
 #include <miopen/conv/problem_description.hpp>
+#include <miopen/conv_solution.hpp>
 #include <miopen/convolution.hpp>
+#include <miopen/execution_context.hpp>
 #include <miopen/tensor.hpp>
 
 #if MIOPEN_BACKEND_HIP
@@ -52,7 +54,7 @@ miopen::conv::ProblemDescription MakeGroupedConvProblem()
 
 #if MIOPEN_BACKEND_HIP
 
-TEST(GPU_CKGroupedConvLoader, LoaderLoadsForCurrentDevice)
+TEST(GPU_CKGroupedConvLoader_FP16, LoaderLoadsForCurrentDevice)
 {
     const auto device_name = GetDeviceArch();
     ASSERT_FALSE(device_name.empty()) << "Failed to query HIP device";
@@ -72,7 +74,7 @@ TEST(GPU_CKGroupedConvLoader, LoaderLoadsForCurrentDevice)
     }
 }
 
-TEST(GPU_CKGroupedConvLoader, LoaderFillsValidKernels)
+TEST(GPU_CKGroupedConvLoader_FP16, LoaderFillsValidKernels)
 {
     const auto device_name = GetDeviceArch();
     ASSERT_FALSE(device_name.empty());
@@ -88,7 +90,7 @@ TEST(GPU_CKGroupedConvLoader, LoaderFillsValidKernels)
         << "Expected at least one valid CK grouped conv kernel for " << device_name;
 }
 
-TEST(GPU_CKGroupedConvLoader, LoaderCachesPerDevice)
+TEST(GPU_CKGroupedConvLoader_FP16, LoaderCachesPerDevice)
 {
     const auto device_name = GetDeviceArch();
     ASSERT_FALSE(device_name.empty());
@@ -99,7 +101,7 @@ TEST(GPU_CKGroupedConvLoader, LoaderCachesPerDevice)
     EXPECT_EQ(&loader1, &loader2) << "Get() should return the same cached instance";
 }
 
-TEST(GPU_CKGroupedConvLoader, LoaderStripsDeviceSuffix)
+TEST(GPU_CKGroupedConvLoader_FP16, LoaderStripsDeviceSuffix)
 {
     const auto device_name = GetDeviceArch();
     ASSERT_FALSE(device_name.empty());
@@ -123,32 +125,36 @@ TEST(GPU_CKGroupedConvLoader, LoaderStripsDeviceSuffix)
 
 // -- CPU tests (no GPU required) ----------------------------------------------
 
-TEST(CPU_CKGroupedConvLoader, LoaderFailsGracefullyForUnknownDevice)
+TEST(CPU_CKGroupedConvLoader_NONE, LoaderFailsGracefullyForUnknownDevice)
 {
     const auto& loader = miopen::solver::CKGroupedConvLibLoader::Get("gfx_nonexistent");
     EXPECT_FALSE(loader.IsLoaded());
 }
 
-TEST(CPU_CKGroupedConvLoader, LoaderReturnsEmptyOnFailure)
+TEST(CPU_CKGroupedConvLoader_NONE, LoaderReturnsEmptyOnFailure)
 {
     const auto& loader = miopen::solver::CKGroupedConvLibLoader::Get("gfx_bogus");
     ASSERT_FALSE(loader.IsLoaded());
 
     const auto problem = MakeGroupedConvProblem();
+    miopen::ExecutionContext ctx;
 
     // All wrappers should return safe defaults when the library is not loaded
     EXPECT_TRUE(loader.fwd_fill_valid_kernels(problem, miopenHalf, false).empty());
     EXPECT_FALSE(loader.fwd_is_applicable(problem, miopenHalf, false));
     EXPECT_FALSE(loader.fwd_is_args_supported(problem, "dummy_kernel", miopenHalf, false));
     EXPECT_EQ(loader.fwd_get_workspace_size(problem, miopenHalf), 0u);
+    EXPECT_EQ(loader.fwd_get_solution(ctx, problem, "dummy", false).status, miopenStatusInternalError);
 
     EXPECT_TRUE(loader.bwd_fill_valid_kernels(problem, miopenHalf, false).empty());
     EXPECT_FALSE(loader.bwd_is_applicable(problem, miopenHalf, false));
     EXPECT_FALSE(loader.bwd_is_args_supported(problem, "dummy_kernel", miopenHalf, false));
     EXPECT_EQ(loader.bwd_get_workspace_size(problem, miopenHalf), 0u);
+    EXPECT_EQ(loader.bwd_get_solution(ctx, problem, "dummy", false).status, miopenStatusInternalError);
 
     EXPECT_TRUE(loader.wrw_fill_valid_kernels(problem, miopenHalf, false).empty());
     EXPECT_FALSE(loader.wrw_is_applicable(problem, miopenHalf, false));
     EXPECT_FALSE(loader.wrw_is_args_supported(problem, "dummy_kernel", miopenHalf, false));
     EXPECT_EQ(loader.wrw_get_workspace_size(problem, miopenHalf), 0u);
+    EXPECT_EQ(loader.wrw_get_solution(ctx, problem, "dummy", false).status, miopenStatusInternalError);
 }
