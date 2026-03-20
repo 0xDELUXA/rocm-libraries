@@ -11,7 +11,7 @@
 #include <hipdnn_data_sdk/utilities/PlatformUtils.hpp>
 #include <hipdnn_plugin_sdk/PluginException.hpp>
 
-namespace hip_kernel_provider
+namespace hip_kernel_provider::batchnorm
 {
 
 BatchnormFwdInferenceParams::BatchnormFwdInferenceParams(
@@ -302,4 +302,4 @@ void BatchnormFwdInferencePlan::execute(const HipKernelHandle& handle,
                             activationBeta);
 }
 
-}
+} // namespace hip_kernel_provider::batchnorm

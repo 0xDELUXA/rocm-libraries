@@ -3,13 +3,12 @@
 
 #include <hipdnn_data_sdk/flatbuffer_utilities/FlatbufferTypeHelpers.hpp>
 #include <hipdnn_plugin_sdk/PluginLogging.hpp>
-#include <string>
 
 #include "BatchnormPlanBuilder.hpp"
-#include "engines/plans/BatchnormApplicabilityChecks.hpp"
-#include "engines/plans/BatchnormFwdInferencePlan.hpp"
+#include "engines/plans/batchnorm/BatchnormApplicabilityChecks.hpp"
+#include "engines/plans/batchnorm/BatchnormFwdInferencePlan.hpp"
 
-namespace hip_kernel_provider
+namespace hip_kernel_provider::batchnorm
 {
 
 BatchnormPlanBuilder::BatchnormPlanBuilder(const IKernelCompiler& kernelCompiler,
@@ -134,4 +133,4 @@ std::vector<hipdnn_data_sdk::data_objects::KnobT> BatchnormPlanBuilder::getCusto
     return {};
 }
 
-} // namespace hip_kernel_provider
+} // namespace hip_kernel_provider::batchnorm

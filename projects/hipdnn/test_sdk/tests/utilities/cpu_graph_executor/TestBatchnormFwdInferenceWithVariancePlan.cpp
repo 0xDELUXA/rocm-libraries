@@ -24,6 +24,9 @@ using namespace hipdnn_data_sdk::flatbuffer_utilities;
 using namespace ::testing;
 using namespace hipdnn_sdk_test_utils;
 
+namespace hip_kernel_provider::batchnorm::test
+{
+
 class TestBatchnormFwdWithVariancePlan : public ::testing::Test
 {
 };
@@ -210,3 +213,5 @@ TEST(TestBatchnormFwdInferenceWithVariancePlan, NodeTypeIsCorrect)
     BatchnormFwdInferenceWithVarianceSignatureKey key; // NOLINT(misc-const-correctness)
     EXPECT_EQ(key.nodeType, NodeAttributes::BatchnormInferenceAttributesVarianceExt);
 }
+
+} // namespace hip_kernel_provider::batchnorm::test

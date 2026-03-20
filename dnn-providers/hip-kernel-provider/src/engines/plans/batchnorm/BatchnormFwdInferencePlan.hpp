@@ -18,6 +18,9 @@ namespace hip_kernel_provider
 
 class IKernelCompiler;
 
+namespace batchnorm
+{
+
 class BatchnormFwdInferenceParams
 {
 public:
@@ -84,4 +87,6 @@ private:
     unsigned int _batchStride = 0;
 };
 
-}
+} // namespace batchnorm
+
+} // namespace hip_kernel_provider

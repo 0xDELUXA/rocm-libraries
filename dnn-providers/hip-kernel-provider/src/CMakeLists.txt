@@ -12,9 +12,9 @@ add_library(
     hip/HipProgram.cpp
     hip/HipKernel.cpp
     ${KERNEL_GENERATED_SOURCES}
-    engines/plans/BatchnormPlanBuilder.cpp
-    engines/plans/BatchnormFwdInferencePlan.cpp
-    engines/plans/BatchnormApplicabilityChecks.cpp
+    engines/plans/batchnorm/BatchnormPlanBuilder.cpp
+    engines/plans/batchnorm/BatchnormFwdInferencePlan.cpp
+    engines/plans/batchnorm/BatchnormApplicabilityChecks.cpp
 )
 target_include_directories(hip_kernel_provider_impl PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
