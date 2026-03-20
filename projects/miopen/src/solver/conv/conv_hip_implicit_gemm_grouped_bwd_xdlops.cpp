@@ -182,8 +182,9 @@ bool PerformanceConfigHipImplicitGemmGroupBwdXdlops::RunParameterPredictionModel
     {
         if(tf32)
         {
-            tf32          = false;
-            valid_kernels = loader.fill_valid_kernels(CKConvDirection::Bwd, problem, data_type, false);
+            tf32 = false;
+            valid_kernels =
+                loader.fill_valid_kernels(CKConvDirection::Bwd, problem, data_type, false);
         }
     }
     if(valid_kernels.empty())
@@ -370,7 +371,8 @@ bool PerformanceConfigHipImplicitGemmGroupBwdXdlops::SetNextValue(const ProblemD
         bool tf32      = (data_type == miopenFloat) && problem.UseTF32();
         valid_kernels  = loader.fill_valid_kernels(CKConvDirection::Bwd, problem, data_type, tf32);
         if(valid_kernels.empty() && tf32)
-            valid_kernels = loader.fill_valid_kernels(CKConvDirection::Bwd, problem, data_type, false);
+            valid_kernels =
+                loader.fill_valid_kernels(CKConvDirection::Bwd, problem, data_type, false);
 
         use_tf32 = tf32;
 
@@ -535,7 +537,8 @@ bool ConvHipImplicitGemmGroupBwdXdlops::IsApplicable(
     if(!loader.IsLoaded())
         return false;
 
-    return loader.is_applicable(CKConvDirection::Bwd, problem, problem.GetInDataType(), problem.UseTF32());
+    return loader.is_applicable(
+        CKConvDirection::Bwd, problem, problem.GetInDataType(), problem.UseTF32());
 }
 
 ConvSolution ConvHipImplicitGemmGroupBwdXdlops::GetSolution(
@@ -547,7 +550,8 @@ ConvSolution ConvHipImplicitGemmGroupBwdXdlops::GetSolution(
     if(!loader.IsLoaded())
         return {};
 
-    return loader.get_solution(CKConvDirection::Bwd, ctx, problem, config.kernel_id, config.UseTF32());
+    return loader.get_solution(
+        CKConvDirection::Bwd, ctx, problem, config.kernel_id, config.UseTF32());
 }
 
 } // namespace conv

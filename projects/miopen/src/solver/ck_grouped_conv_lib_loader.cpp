@@ -198,11 +198,11 @@ bool CKGroupedConvLibLoader::LoadSymbols()
     LOAD_SYM(solution_free_fn_, ckgrpconv_solution_free);
 
     // Per-direction symbols
-#define LOAD_DIR_SYMS(idx, prefix)                                                          \
-    LOAD_SYM(dir_fns_[idx].fill_valid_kernels, ckgrpconv_##prefix##_fill_valid_kernels);    \
-    LOAD_SYM(dir_fns_[idx].is_applicable, ckgrpconv_##prefix##_is_applicable);              \
-    LOAD_SYM(dir_fns_[idx].is_args_supported, ckgrpconv_##prefix##_is_args_supported);      \
-    LOAD_SYM(dir_fns_[idx].get_workspace_size, ckgrpconv_##prefix##_get_workspace_size);    \
+#define LOAD_DIR_SYMS(idx, prefix)                                                       \
+    LOAD_SYM(dir_fns_[idx].fill_valid_kernels, ckgrpconv_##prefix##_fill_valid_kernels); \
+    LOAD_SYM(dir_fns_[idx].is_applicable, ckgrpconv_##prefix##_is_applicable);           \
+    LOAD_SYM(dir_fns_[idx].is_args_supported, ckgrpconv_##prefix##_is_args_supported);   \
+    LOAD_SYM(dir_fns_[idx].get_workspace_size, ckgrpconv_##prefix##_get_workspace_size); \
     LOAD_SYM(dir_fns_[idx].get_solution, ckgrpconv_##prefix##_get_solution)
 
     LOAD_DIR_SYMS(0, fwd);
@@ -244,11 +244,11 @@ ConvSolution CKGroupedConvLibLoader::ExtractSolution(ConvSolution* ptr) const
 
 // -- Direction-parameterized wrappers -----------------------------------------
 
-std::vector<std::string> CKGroupedConvLibLoader::fill_valid_kernels(
-    CKConvDirection dir,
-    const conv::ProblemDescription& problem,
-    miopenDataType_t dtype,
-    bool use_tf32) const
+std::vector<std::string>
+CKGroupedConvLibLoader::fill_valid_kernels(CKConvDirection dir,
+                                           const conv::ProblemDescription& problem,
+                                           miopenDataType_t dtype,
+                                           bool use_tf32) const
 {
     if(!IsLoaded())
         return {};

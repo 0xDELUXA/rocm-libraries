@@ -26,7 +26,12 @@ struct ProblemDescription;
 namespace solver {
 struct ConvSolution;
 
-enum class CKConvDirection { Fwd = 0, Bwd = 1, Wrw = 2 };
+enum class CKConvDirection
+{
+    Fwd = 0,
+    Bwd = 1,
+    Wrw = 2
+};
 
 /// Query the HIP runtime for the current device's architecture name.
 /// Returns an empty string on failure or when not using the HIP backend.
@@ -61,18 +66,16 @@ public:
                        miopenDataType_t dtype,
                        bool use_tf32) const;
 
-    MIOPEN_INTERNALS_EXPORT bool
-    is_applicable(CKConvDirection dir,
-                  const miopen::conv::ProblemDescription& problem,
-                  miopenDataType_t dtype,
-                  bool use_tf32) const;
+    MIOPEN_INTERNALS_EXPORT bool is_applicable(CKConvDirection dir,
+                                               const miopen::conv::ProblemDescription& problem,
+                                               miopenDataType_t dtype,
+                                               bool use_tf32) const;
 
-    MIOPEN_INTERNALS_EXPORT bool
-    is_args_supported(CKConvDirection dir,
-                      const miopen::conv::ProblemDescription& problem,
-                      const std::string& kernel_id,
-                      miopenDataType_t dtype,
-                      bool use_tf32) const;
+    MIOPEN_INTERNALS_EXPORT bool is_args_supported(CKConvDirection dir,
+                                                   const miopen::conv::ProblemDescription& problem,
+                                                   const std::string& kernel_id,
+                                                   miopenDataType_t dtype,
+                                                   bool use_tf32) const;
 
     MIOPEN_INTERNALS_EXPORT size_t
     get_workspace_size(CKConvDirection dir,

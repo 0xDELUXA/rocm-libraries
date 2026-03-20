@@ -41,9 +41,19 @@ struct CKArgs
 {
     CKArgs(const ProblemDescription& problem)
     {
-        auto d = ExtractConvDims(problem);
-        G = d.G; N = d.N; K1 = d.K1; C1 = d.C1; C = d.C; K = d.K;
-        Hi = d.Hi; Wi = d.Wi; Ho = d.Ho; Wo = d.Wo; Y = d.Y; X = d.X;
+        auto d          = ExtractConvDims(problem);
+        G               = d.G;
+        N               = d.N;
+        K1              = d.K1;
+        C1              = d.C1;
+        C               = d.C;
+        K               = d.K;
+        Hi              = d.Hi;
+        Wi              = d.Wi;
+        Ho              = d.Ho;
+        Wo              = d.Wo;
+        Y               = d.Y;
+        X               = d.X;
         data_type       = ProblemInterpreter::GetOutputDataType(problem);
         alpha_beta_case = ProblemInterpreter::GetAlphaBetaCase(problem);
 

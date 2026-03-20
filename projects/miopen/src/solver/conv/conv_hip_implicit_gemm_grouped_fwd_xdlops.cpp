@@ -479,7 +479,8 @@ ConvSolution ConvHipImplicitGemmGroupFwdXdlops::GetSolution(
     if(!loader.IsLoaded())
         return {};
 
-    return loader.get_solution(CKConvDirection::Fwd, ctx, problem, config.kernel_id, config.UseTF32());
+    return loader.get_solution(
+        CKConvDirection::Fwd, ctx, problem, config.kernel_id, config.UseTF32());
 }
 
 } // namespace conv

@@ -109,9 +109,11 @@ bool PerformanceConfigHipImplicitGemmGroupWrwXdlops::ModelApplyToken(
 
             const auto& loader = CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
             bool valid_split_k =
-                loader.IsLoaded() &&
-                loader.is_args_supported(
-                    CKConvDirection::Wrw, problem, kernel_id, problem.GetInDataType(), problem.UseTF32());
+                loader.IsLoaded() && loader.is_args_supported(CKConvDirection::Wrw,
+                                                              problem,
+                                                              kernel_id,
+                                                              problem.GetInDataType(),
+                                                              problem.UseTF32());
 
             if(valid_split_k)
                 return true;
@@ -396,11 +398,13 @@ bool PerformanceConfigHipImplicitGemmGroupWrwXdlops::SetNextValue(const ProblemD
         auto data_type = problem.GetInDataType();
         use_tf32       = (data_type == miopenFloat && problem.UseTF32());
 
-        valid_kernels = loader.fill_valid_kernels(CKConvDirection::Wrw, problem, data_type, use_tf32);
+        valid_kernels =
+            loader.fill_valid_kernels(CKConvDirection::Wrw, problem, data_type, use_tf32);
         if(valid_kernels.empty() && use_tf32)
         {
-            use_tf32      = false;
-            valid_kernels = loader.fill_valid_kernels(CKConvDirection::Wrw, problem, data_type, false);
+            use_tf32 = false;
+            valid_kernels =
+                loader.fill_valid_kernels(CKConvDirection::Wrw, problem, data_type, false);
         }
 
         assert(!valid_kernels.empty());
@@ -556,7 +560,8 @@ bool ConvHipImplicitGemmGroupWrwXdlops::IsApplicable(
     if(!loader.IsLoaded())
         return false;
 
-    return loader.is_applicable(CKConvDirection::Wrw, problem, problem.GetInDataType(), problem.UseTF32());
+    return loader.is_applicable(
+        CKConvDirection::Wrw, problem, problem.GetInDataType(), problem.UseTF32());
 }
 
 ConvSolution ConvHipImplicitGemmGroupWrwXdlops::GetSolution(
@@ -568,7 +573,8 @@ ConvSolution ConvHipImplicitGemmGroupWrwXdlops::GetSolution(
     if(!loader.IsLoaded())
         return {};
 
-    return loader.get_solution(CKConvDirection::Wrw, ctx, problem, config.kernel_id, config.UseTF32());
+    return loader.get_solution(
+        CKConvDirection::Wrw, ctx, problem, config.kernel_id, config.UseTF32());
 }
 
 } // namespace conv
