@@ -47,7 +47,14 @@ _timing_buffer = []
 
 @contextmanager
 def timing_context(category_name):
-    """Context manager for timing instrumentation."""
+    """Context manager for timing instrumentation.
+
+    Records raw wall-clock time with no overhead subtraction.  Python-side
+    overhead (context-manager protocol, time.time_ns, dict lookup) is not
+    tracked because there are only ~a dozen calls per run — the overhead
+    is negligible relative to the seconds-scale measurements.  C++ overhead
+    is tracked separately via a calibrated timing_overhead record.
+    """
     if globalParameters.get("TimingInstrumentation", False):
         start = time.time_ns()
         try:

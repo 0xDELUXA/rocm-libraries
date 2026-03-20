@@ -19,11 +19,9 @@ namespace TensileLite
         // Set via command line: --timing-instrumentation
         inline bool g_timingInstrumentationEnabled = false;
 
-        // Accumulated instrumentation overhead in nanoseconds.
-        // Tracks time spent in ScopedTimer construction/destruction bookkeeping
-        // (clock::now calls, push_back, etc.) that falls OUTSIDE measured intervals.
+        // Per-call overhead measured once at startup via calibrateTimingOverhead().
         // Single-threaded — no atomic needed.
-        inline int64_t g_timingOverheadNs = 0;
+        inline double g_calibratedPerCallOverheadMs = 0;
 
         // ---- Deferred I/O buffer ------------------------------------------------
         //
@@ -106,12 +104,11 @@ namespace TensileLite
         // Format and write all buffered records, then clear the buffer.
         inline void flushTimingBuffer()
         {
-            // Emit accumulated instrumentation overhead as a timing record.
-            if(g_timingInstrumentationEnabled)
+            // Emit calibrated instrumentation overhead as a timing record.
+            if(g_timingInstrumentationEnabled && g_calibratedPerCallOverheadMs > 0)
             {
-                double overheadMs = g_timingOverheadNs / 1'000'000.0;
+                double overheadMs = g_calibratedPerCallOverheadMs * g_timingBuffer.size();
                 g_timingBuffer.push_back(TimingRec{"timing_overhead", overheadMs});
-                g_timingOverheadNs = 0;
             }
 
             for(auto& rec : g_timingBuffer)
@@ -155,14 +152,8 @@ namespace TensileLite
             {
                 if(g_timingInstrumentationEnabled)
                 {
-                    auto t0    = clock::now();
                     m_category = category;
                     m_start    = clock::now();
-                    // Overhead = time between first clock::now and measurement start.
-                    g_timingOverheadNs
-                        += std::chrono::duration_cast<std::chrono::nanoseconds>(
-                               m_start - t0)
-                               .count();
                 }
             }
 
@@ -174,11 +165,6 @@ namespace TensileLite
                     double durationMs
                         = std::chrono::duration<double, std::milli>(end - m_start).count();
                     g_timingBuffer.push_back(TimingRec{m_category, durationMs});
-                    auto t1 = clock::now();
-                    // Overhead = time between measurement end and destructor finish.
-                    g_timingOverheadNs
-                        += std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - end)
-                               .count();
                 }
             }
 
@@ -195,16 +181,32 @@ namespace TensileLite
             std::chrono::time_point<clock> m_start;
         };
 
+        // Measure per-call ScopedTimer overhead once at startup.
+        // Must be called after initTimingBuffer().
+        inline void calibrateTimingOverhead()
+        {
+            if(!g_timingInstrumentationEnabled)
+                return;
+            constexpr int kWarmup = 1000;
+            constexpr int kIter   = 100000;
+            for(int i = 0; i < kWarmup; i++)
+            { ScopedTimer t("_calibrate"); }
+            g_timingBuffer.clear();
+            auto t0 = TimingClock::now();
+            for(int i = 0; i < kIter; i++)
+            { ScopedTimer t("_calibrate"); }
+            auto t1 = TimingClock::now();
+            g_calibratedPerCallOverheadMs
+                = std::chrono::duration<double, std::milli>(t1 - t0).count() / kIter;
+            g_timingBuffer.clear();
+        }
+
         // Report a timing value directly (for GPU timings already measured)
         inline void reportTiming(const char* category, double ms)
         {
             if(g_timingInstrumentationEnabled)
             {
-                auto t0 = TimingClock::now();
                 g_timingBuffer.push_back(TimingRec{category, ms});
-                auto t1 = TimingClock::now();
-                g_timingOverheadNs
-                    += std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
             }
         }
 
@@ -214,11 +216,7 @@ namespace TensileLite
         {
             if(g_timingInstrumentationEnabled)
             {
-                auto t0 = TimingClock::now();
                 g_timingBuffer.push_back(ContextRec{M, N, K, batchCount, typeA, typeD});
-                auto t1 = TimingClock::now();
-                g_timingOverheadNs
-                    += std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
             }
         }
 
@@ -229,12 +227,8 @@ namespace TensileLite
         {
             if(g_timingInstrumentationEnabled)
             {
-                auto t0 = TimingClock::now();
                 g_timingBuffer.push_back(
                     GroupedContextRec{index, totalGemms, M, N, K, batchCount, typeA, typeD});
-                auto t1 = TimingClock::now();
-                g_timingOverheadNs
-                    += std::chrono::duration_cast<std::chrono::nanoseconds>(t1 - t0).count();
             }
         }
 

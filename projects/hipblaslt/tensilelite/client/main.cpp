@@ -886,6 +886,7 @@ int main(int argc, const char* argv[])
     ClientProblemFactory problemFactory(args);
 
     initTimingBuffer();
+    calibrateTimingOverhead();
 
     std::shared_ptr<Hardware> hardware;
     hipStream_t              stream;

@@ -85,11 +85,13 @@ If `flush_timing_buffer()` is ever called inside an active `timing_context`, the
 
 ---
 
-## Issue 8 (Moderate): C++ overhead measurement doubles `clock::now()` calls
+## Issue 8 (Moderate): C++ overhead measurement doubles `clock::now()` calls -- RESOLVED
 
 `TimingInstrumentation.hpp:156-163` -- ScopedTimer constructor now calls `clock::now()` twice (t0 and m_start). Destructor also calls it twice (end and t1). The original code called it once in the constructor and once in the destructor (2 total). The new code makes 4 calls total.
 
 The extra 2 `clock::now()` calls used to measure overhead are themselves overhead that is NOT tracked. This creates systematic underreporting of instrumentation overhead and makes the timer heavier on every invocation, whether or not the overhead data is used.
+
+**Fix applied**: Replaced per-call overhead tracking with one-time calibration at startup. `calibrateTimingOverhead()` measures the average per-call cost of `ScopedTimer` via 100k iterations (after 1k warmup), then `flushTimingBuffer()` estimates total overhead as `calibratedPerCallOverhead * bufferSize`. ScopedTimer is now down to exactly 2 `clock::now()` calls (1 constructor, 1 destructor). The `reportTiming`, `reportProblemContext`, and `reportGroupedProblemContext` functions also had their overhead-tracking brackets removed.
 
 ---
 

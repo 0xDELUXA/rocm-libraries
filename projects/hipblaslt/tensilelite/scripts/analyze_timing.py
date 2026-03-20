@@ -238,11 +238,15 @@ def _count_descendant_invocations(children_dict: Dict, timings: Dict[str, List[f
 
 
 def _compute_per_call_overhead(timings: Dict[str, List[float]]) -> float:
-    """Compute per-call instrumentation overhead from the timing_overhead record.
+    """Compute per-call instrumentation overhead from the C++ timing_overhead record.
 
-    The C++ client tracks accumulated overhead (clock::now + push_back bookkeeping)
-    in a timing_overhead record.  Dividing by total invocations gives the average
-    overhead each timer call adds to its parent's measurement.
+    The C++ client emits a timing_overhead record containing the total estimated
+    overhead across all ScopedTimer invocations (calibrated at startup).  Dividing
+    by total invocations gives the average overhead each timer call adds to its
+    parent's measurement.
+
+    Note: Python-side timing_context overhead is not tracked or adjusted here.
+    Python has only ~a dozen calls per run, so the overhead is negligible.
     """
     total_overhead_ms = sum(timings.get('timing_overhead', []))
     if total_overhead_ms <= 0:
