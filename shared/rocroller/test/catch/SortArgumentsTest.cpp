@@ -57,7 +57,7 @@ TEST_CASE("SortArguments transform works as expected", "[kernel-graph][SortArgum
     kgraph = transform<KG::LowerTile>(kgraph, commandParameters, context.get());
     kgraph = transform<KG::LowerTensorContraction>(kgraph, commandParameters, context.get());
     kgraph = transform<KG::Simplify>(kgraph);
-    kgraph = transform<KG::FuseExpressions>(kgraph);
+    kgraph = transform<KG::InlineExpressions>(kgraph);
     kgraph = transform<KG::ConnectWorkgroups>(kgraph, context.get());
     kgraph = transform<KG::WorkgroupRemapXCC>(
         kgraph, context.get(), commandParameters->workgroupRemapXCC);

@@ -84,7 +84,6 @@ namespace InlineExpressionsTest
         example.setTileSize(256, 64, macK);
         example.setMFMA(32, 32, waveK, 1);
         example.setUseLDS(true, true, false);
-        example.setUnroll(2, 2);
 
         example.setPrefetch(true, 2, 2, false);
 

@@ -737,51 +737,6 @@ namespace rocRoller
             }
 
             /**
-             * @brief determine the value count of the destination value of an expression tree
-             */
-            int determineValueCount(ExpressionTree const& tree) const
-            {
-                // Examine the root of the tree, if this is not an arithmetic binary expression, the value count is 1
-                auto root = tree.back();
-                if(canBroadcastValueCount(root.expr))
-                {
-                    if(root.deps.size() != 2)
-                    {
-                        return 1;
-                    }
-                    // Get value counts of children
-                    std::vector<int> children(root.deps.begin(), root.deps.end());
-                    auto             valueCount1 = tree.at(children.at(0)).reg->valueCount();
-                    auto             valueCount2 = tree.at(children.at(1)).reg->valueCount();
-
-                    // If the value counts of both children are the same, return that value count
-                    if(valueCount1 == valueCount2)
-                    {
-                        return valueCount1;
-                    }
-                    // If one of the children has a value count of 1, take the value count of the other child
-                    else if(valueCount1 == 1)
-                    {
-                        return valueCount2;
-                    }
-                    else if(valueCount2 == 1)
-                    {
-                        return valueCount1;
-                    }
-                    // If value counts of children are different, one of them has to = 1
-                    else
-                    {
-                        Throw<FatalError>(
-                            "If value counts of both children are != 1, they must be the same",
-                            ShowValue(valueCount1),
-                            ShowValue(valueCount2));
-                    }
-                }
-
-                return 1;
-            }
-
-            /**
              * @brief Generate a tree from an expression's argument. Creates placeholder.
              *
              * @param expr Expression to decompose
@@ -801,8 +756,7 @@ namespace rocRoller
                     }
                     if(tree.back().reg == nullptr)
                     {
-                        tree.back().reg = resultPlaceholder(
-                            resultType(expr), sccAvailable(tree), determineValueCount(tree));
+                        tree.back().reg = resultPlaceholder(resultType(expr), sccAvailable(tree));
                     }
                 }
 
