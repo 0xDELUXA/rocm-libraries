@@ -148,6 +148,7 @@ namespace TensileLite
         public:
             using clock = TimingClock;
 
+            // category must be a string literal or have static storage duration
             ScopedTimer(const char* category)
             {
                 if(g_timingInstrumentationEnabled)

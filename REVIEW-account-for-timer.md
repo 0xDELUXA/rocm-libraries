@@ -95,7 +95,7 @@ The extra 2 `clock::now()` calls used to measure overhead are themselves overhea
 
 ---
 
-## Issue 9 (Minor): Misleading comment on error-exit path
+## Issue 9 (Minor): Misleading comment on error-exit path -- RESOLVED
 
 `main.cpp:1242-1244`:
 ```cpp
@@ -106,13 +106,15 @@ The extra 2 `clock::now()` calls used to measure overhead are themselves overhea
 
 At this point in the code, all ScopedTimer instances in enclosing scopes have already been destructed (they're all in explicit `{}` blocks that close before the error check). There are no active ScopedTimers on the stack. The comment describes a scenario that doesn't actually happen.
 
+**Fix applied**: Removed the misleading comment.
+
 ---
 
-## Issue 10 (Minor): `const char*` in `ScopedTimer` removes safety net
+## Issue 10 (Minor): `const char*` in `ScopedTimer` removes safety net -- RESOLVED
 
 `TimingInstrumentation.hpp:152` -- Changed from `std::string` to `const char*`. All current call sites use string literals (static storage), so this is safe. But the previous `std::string` version was safe regardless of the caller's string lifetime. If anyone passes a dynamically-constructed string in the future, it would be a dangling pointer bug.
 
-Consider adding a comment: `// category must be a string literal or have static storage duration`.
+**Fix applied**: Added comment: `// category must be a string literal or have static storage duration`.
 
 ---
 
