@@ -18,6 +18,8 @@ add_executable(
     engines/TestHipKernelEngine.cpp
     engines/plans/Batchnorm/TestBatchnormPlanBuilder.cpp
     engines/plans/Batchnorm/TestBatchnormFwdInferencePlan.cpp
+    engines/plans/Layernorm/TestLayernormPlanBuilder.cpp
+    engines/plans/Layernorm/TestLayernormFwdPlan.cpp
     hip/TestHipProgramAndKernel.cpp
 )
 
