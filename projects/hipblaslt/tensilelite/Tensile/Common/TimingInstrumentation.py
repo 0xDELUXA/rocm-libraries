@@ -87,7 +87,7 @@ def timing_context(category_name):
         finally:
             elapsed_ns = time.time_ns() - start
             child_invocations = _invocation_count - count_snapshot
-            adjusted_ns = elapsed_ns - child_invocations * _per_call_overhead_ns
+            adjusted_ns = max(0, elapsed_ns - child_invocations * _per_call_overhead_ns)
             _timing_buffer.append((category_name, adjusted_ns / 1_000_000))
             _invocation_count += 1
     else:

@@ -6,17 +6,17 @@ This branch converts the timing instrumentation from immediate I/O to deferred b
 
 ---
 
-## Issue 1 (Major): `initTimingBuffer()` allocates ~300MB unconditionally
+## Issue 1 (Major): `initTimingBuffer()` allocates ~300MB unconditionally -- RESOLVED
 
 `TimingInstrumentation.hpp:58-61` -- `initTimingBuffer(2'500'000)` is called in `main.cpp:888` regardless of whether `g_timingInstrumentationEnabled` is true.
 
 Each `std::variant<TimingRec, ContextRec, GroupedContextRec>` is ~120 bytes. Reserving 2.5M elements allocates ~300MB even when timing is disabled (the default). This penalizes every non-timing run.
 
-**Fix**: Guard it with `if(g_timingInstrumentationEnabled)` or move it after the flag is set and check there.
+**Fix applied**: Added `if(g_timingInstrumentationEnabled)` guard inside `initTimingBuffer()`.
 
 ---
 
-## Issue 2 (Major): Python overhead subtraction can produce negative timings
+## Issue 2 (Major): Python overhead subtraction can produce negative timings -- RESOLVED
 
 `TimingInstrumentation.py:90`:
 ```python
@@ -25,7 +25,7 @@ adjusted_ns = elapsed_ns - child_invocations * _per_call_overhead_ns
 
 If the calibrated overhead overestimates real overhead (plausible due to different cache/branch-prediction behavior during calibration vs. real workloads), and there are many child invocations in a lightweight parent, the adjusted value can go negative. Consider a parent with 100 child calls doing trivial work -- if calibration overhead is 2x the actual overhead, `adjusted_ns` would be significantly negative.
 
-**Fix**: Clamp to zero: `adjusted_ns = max(0, elapsed_ns - child_invocations * _per_call_overhead_ns)`
+**Fix applied**: Clamped to zero: `adjusted_ns = max(0, elapsed_ns - child_invocations * _per_call_overhead_ns)`
 
 ---
 

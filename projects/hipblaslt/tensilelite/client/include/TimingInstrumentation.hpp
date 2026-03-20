@@ -55,9 +55,11 @@ namespace TensileLite
         inline std::vector<TimingRecord> g_timingBuffer;
 
         // Reserve buffer capacity upfront. Real workloads produce ~2M+ records.
+        // Only allocates when timing is enabled to avoid penalizing normal runs.
         inline void initTimingBuffer(size_t capacity = 2'500'000)
         {
-            g_timingBuffer.reserve(capacity);
+            if(g_timingInstrumentationEnabled)
+                g_timingBuffer.reserve(capacity);
         }
 
         // ---- Formatting helpers (used only during flush) ------------------------
