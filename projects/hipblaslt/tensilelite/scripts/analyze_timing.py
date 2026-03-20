@@ -113,7 +113,6 @@ TIMING_HIERARCHY = {
             "timing_overhead": {},
             "flush_timing_buffer": {},
         },
-        "calibrate_python_timing_overhead": {},
     },
     "python_library_logic": {
         "python_logic_parse_solutions": {},
@@ -225,26 +224,67 @@ class PhaseNode:
     children: List['PhaseNode']
 
 
-def _build_node(name: str, children_dict: Dict, timings: Dict[str, List[float]]) -> Optional['PhaseNode']:
+# Categories that represent instrumentation overhead measurements, not actual work.
+OVERHEAD_CATEGORIES = {'timing_overhead'}
+
+
+def _count_descendant_invocations(children_dict: Dict, timings: Dict[str, List[float]]) -> int:
+    """Count total timer invocations across all descendants in the hierarchy."""
+    count = 0
+    for child_name, grandchildren in children_dict.items():
+        count += len(timings.get(child_name, []))
+        count += _count_descendant_invocations(grandchildren, timings)
+    return count
+
+
+def _compute_per_call_overhead(timings: Dict[str, List[float]]) -> float:
+    """Compute per-call instrumentation overhead from the timing_overhead record.
+
+    The C++ client tracks accumulated overhead (clock::now + push_back bookkeeping)
+    in a timing_overhead record.  Dividing by total invocations gives the average
+    overhead each timer call adds to its parent's measurement.
+    """
+    total_overhead_ms = sum(timings.get('timing_overhead', []))
+    if total_overhead_ms <= 0:
+        return 0.0
+    total_invocations = sum(
+        len(vals) for cat, vals in timings.items()
+        if cat not in OVERHEAD_CATEGORIES
+    )
+    if total_invocations == 0:
+        return 0.0
+    return total_overhead_ms / total_invocations
+
+
+def _build_node(name: str, children_dict: Dict, timings: Dict[str, List[float]],
+                per_call_overhead_ms: float = 0) -> Optional['PhaseNode']:
     """Build a PhaseNode recursively from the hierarchy dict.
 
     Args:
         name: The timing category name.
         children_dict: Dict of {child_name: grandchildren_dict} from TIMING_HIERARCHY.
         timings: Raw timing data from analyze_timing_file.
+        per_call_overhead_ms: Per-invocation overhead to subtract from parent totals
+            based on descendant invocation count.
     """
     if name not in timings:
         return None
     values = timings[name]
     count = len(values)
-    total_ms = sum(values)
+    raw_total_ms = sum(values)
+
+    # Subtract estimated overhead from descendant timer invocations.
+    # Each descendant invocation adds ~per_call_overhead_ms to this node's
+    # raw measurement via context-manager / RAII bookkeeping.
+    desc_invocations = _count_descendant_invocations(children_dict, timings)
+    total_ms = max(0, raw_total_ms - desc_invocations * per_call_overhead_ms)
     mean_ms = total_ms / count if count > 0 else 0
 
     children = []
     if children_dict:
         child_sum = 0.0
         for child_name, grandchildren in children_dict.items():
-            child_node = _build_node(child_name, grandchildren, timings)
+            child_node = _build_node(child_name, grandchildren, timings, per_call_overhead_ms)
             if child_node:
                 children.append(child_node)
                 child_sum += child_node.total_ms
@@ -289,10 +329,15 @@ def _get_display_children(node: PhaseNode) -> List[PhaseNode]:
 
 
 def build_hierarchy(timings: Dict[str, List[float]]) -> List[PhaseNode]:
-    """Build the phase hierarchy from raw timings, sorted by total time descending."""
+    """Build the phase hierarchy from raw timings, sorted by total time descending.
+
+    Automatically adjusts parent totals by subtracting estimated per-call
+    instrumentation overhead based on descendant invocation counts.
+    """
+    per_call_overhead_ms = _compute_per_call_overhead(timings)
     top_nodes = []
     for phase, children_dict in TIMING_HIERARCHY.items():
-        node = _build_node(phase, children_dict, timings)
+        node = _build_node(phase, children_dict, timings, per_call_overhead_ms)
         if node:
             top_nodes.append(node)
     top_nodes.sort(key=lambda n: n.total_ms, reverse=True)

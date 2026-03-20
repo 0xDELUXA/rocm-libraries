@@ -29,16 +29,18 @@ If the calibrated overhead overestimates real overhead (plausible due to differe
 
 ---
 
-## Issue 3 (Major): Inconsistent overhead handling between C++ and Python
+## Issue 3 (Major): Inconsistent overhead handling between C++ and Python -- RESOLVED
 
 - **C++**: Accumulates raw overhead and reports it as a single `timing_overhead` record. Individual timings are NOT adjusted -- they still include instrumentation overhead.
 - **Python**: Calibrates per-call overhead and SUBTRACTS it from parent measurements. Individual timings are adjusted.
 
 The analysis script (`analyze_timing.py`) treats all `TIMING:` records uniformly. When both Python and C++ timings are combined, some values have overhead subtracted and some don't. This makes the hierarchy validation and percentage calculations inconsistent.
 
+**Fix applied**: Unified on the C++ approach -- both sides now emit raw timings. Removed Python calibration/subtraction machinery entirely. Overhead adjustment is done in the analysis script using the hierarchy and the `timing_overhead` record: `per_call_overhead = timing_overhead / total_invocations`, then each parent's total is reduced by `descendant_invocations * per_call_overhead`.
+
 ---
 
-## Issue 4 (Moderate): Calibration warmup leaves 100 garbage records in the buffer
+## Issue 4 (Moderate): Calibration warmup leaves 100 garbage records in the buffer -- RESOLVED
 
 `TimingInstrumentation.py:62-64`:
 ```python
@@ -50,7 +52,7 @@ buf_before = len(_timing_buffer)
 
 The 100 warmup iterations are appended to `_timing_buffer` before `buf_before` is recorded. Only entries from `buf_before` onward are deleted (line 73). These 100 warmup records remain and will be flushed to output, polluting timing data with meaningless entries (they run with `_per_call_overhead_ns = 0`, so overhead subtraction is wrong for them too).
 
-**Fix**: Record `buf_before` and `count_before` before the warmup loop, not after it.
+**Fix applied**: Entire calibration machinery removed (see issue 3). No warmup, no garbage records.
 
 ---
 
@@ -70,7 +72,7 @@ The 100 warmup iterations are appended to `_timing_buffer` before `buf_before` i
 
 ---
 
-## Issue 7 (Moderate): `flush_timing_buffer()` resets `_invocation_count` -- latent footgun
+## Issue 7 (Moderate): `flush_timing_buffer()` resets `_invocation_count` -- latent footgun -- RESOLVED
 
 `TimingInstrumentation.py:103`:
 ```python
@@ -79,7 +81,7 @@ _invocation_count = 0
 
 If `flush_timing_buffer()` is ever called inside an active `timing_context`, the parent's `child_invocations = _invocation_count - count_snapshot` would underflow (or wrap, producing a huge value), causing massively wrong overhead subtraction. Current usage in `Tensile.py` is safe (flush happens after the timing_context block), but nothing prevents future misuse.
 
-**Fix**: At minimum, document this invariant. Better: assert that no timing_context is active, or don't reset the counter.
+**Fix applied**: `_invocation_count` removed entirely (see issue 3). No runtime overhead tracking in Python.
 
 ---
 
