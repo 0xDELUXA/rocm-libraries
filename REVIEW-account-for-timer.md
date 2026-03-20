@@ -54,15 +54,19 @@ The 100 warmup iterations are appended to `_timing_buffer` before `buf_before` i
 
 ---
 
-## Issue 5 (Moderate): `python_timing_overhead` hierarchy entry is a phantom
+## Issue 5 (Moderate): `python_timing_overhead` hierarchy entry is a phantom -- RESOLVED
 
 `analyze_timing.py:117` lists `python_timing_overhead` in the hierarchy, but no code ever emits a `TIMING:python_timing_overhead:...` record. The Python code emits `calibrate_python_timing_overhead` (from calibration) but not `python_timing_overhead`. This category will always be empty in analysis output.
 
+**Fix applied**: Removed `python_timing_overhead` from the hierarchy.
+
 ---
 
-## Issue 6 (Moderate): `post_solution_profiler` hierarchy entry has no emitter
+## Issue 6 (Moderate): `post_solution_profiler` hierarchy entry has no emitter -- RESOLVED
 
 `analyze_timing.py:110` adds `post_solution_profiler` to the hierarchy, but no `ScopedTimer("post_solution_profiler")` or `reportTiming("post_solution_profiler", ...)` exists anywhere in the C++ client code. If this is planned future work, it's fine as a placeholder, but the branch adds it without the corresponding instrumentation.
+
+**Fix applied**: Removed `post_solution_profiler` from the hierarchy.
 
 ---
 
