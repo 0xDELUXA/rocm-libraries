@@ -21,10 +21,10 @@ using miopen::conv::ProblemDescription;
 using miopen::solver::ConvSolution;
 using miopen::solver::FillValidKernelsIDs;
 using miopen::solver::GetCKSplitkMaxWorkspaceSize;
-using miopen::solver::IsCKApplicable;
-using miopen::solver::IsCKArgsSupported;
 using miopen::solver::InitInvokerFactoryBwdNCHW;
 using miopen::solver::InitInvokerFactoryNHWC;
+using miopen::solver::IsCKApplicable;
+using miopen::solver::IsCKArgsSupported;
 using miopen::solver::MakeSolutionGroupConvImplicitGemmXdlops;
 using miopen::solver::ProblemInterpreter;
 
@@ -215,9 +215,7 @@ bool CheckCKApplicability(const ProblemDescription& problem, bool use_tf32)
 // ---------------------------------------------------------------------------
 
 extern "C" CKKernelListHandle* ckgrpconv_bwd_fill_valid_kernels(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type,
-    bool use_tf32)
+    const miopen::conv::ProblemDescription* problem, miopenDataType_t data_type, bool use_tf32)
 {
     try
     {
@@ -235,8 +233,7 @@ extern "C" CKKernelListHandle* ckgrpconv_bwd_fill_valid_kernels(
                 result->kernels = FillValidKernelsIDs<DeviceOpGBwdPtrs<float>, CKArgs>(*problem);
             break;
         case miopenBFloat16:
-            result->kernels =
-                FillValidKernelsIDs<DeviceOpGBwdPtrs<ck::bhalf_t>, CKArgs>(*problem);
+            result->kernels = FillValidKernelsIDs<DeviceOpGBwdPtrs<ck::bhalf_t>, CKArgs>(*problem);
             break;
         case miopenInt8:
             result->kernels = FillValidKernelsIDs<DeviceOpGBwdPtrs<int8_t>, CKArgs>(*problem);
@@ -251,10 +248,9 @@ extern "C" CKKernelListHandle* ckgrpconv_bwd_fill_valid_kernels(
     }
 }
 
-extern "C" bool ckgrpconv_bwd_is_applicable(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type,
-    bool use_tf32)
+extern "C" bool ckgrpconv_bwd_is_applicable(const miopen::conv::ProblemDescription* problem,
+                                            miopenDataType_t data_type,
+                                            bool use_tf32)
 {
     try
     {
@@ -273,11 +269,10 @@ extern "C" bool ckgrpconv_bwd_is_applicable(
     }
 }
 
-extern "C" bool ckgrpconv_bwd_is_args_supported(
-    const miopen::conv::ProblemDescription* problem,
-    const char* kernel_id,
-    miopenDataType_t data_type,
-    bool use_tf32)
+extern "C" bool ckgrpconv_bwd_is_args_supported(const miopen::conv::ProblemDescription* problem,
+                                                const char* kernel_id,
+                                                miopenDataType_t data_type,
+                                                bool use_tf32)
 {
     try
     {
@@ -294,8 +289,7 @@ extern "C" bool ckgrpconv_bwd_is_args_supported(
                IsCKArgsSupported<DeviceOpGBwdPtrs<float, ck::tf32_t>, CKArgs>(*problem, kid))
                 return true;
             return IsCKArgsSupported<DeviceOpGBwdPtrs<float>, CKArgs>(*problem, kid);
-        case miopenInt8:
-            return IsCKArgsSupported<DeviceOpGBwdPtrs<int8_t>, CKArgs>(*problem, kid);
+        case miopenInt8: return IsCKArgsSupported<DeviceOpGBwdPtrs<int8_t>, CKArgs>(*problem, kid);
         case miopenBFloat16:
             return IsCKArgsSupported<DeviceOpGBwdPtrs<ck::bhalf_t>, CKArgs>(*problem, kid);
         default: return false;
@@ -307,9 +301,8 @@ extern "C" bool ckgrpconv_bwd_is_args_supported(
     }
 }
 
-extern "C" size_t ckgrpconv_bwd_get_workspace_size(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type)
+extern "C" size_t ckgrpconv_bwd_get_workspace_size(const miopen::conv::ProblemDescription* problem,
+                                                   miopenDataType_t data_type)
 {
     try
     {
@@ -340,11 +333,11 @@ extern "C" size_t ckgrpconv_bwd_get_workspace_size(
     }
 }
 
-extern "C" miopen::solver::ConvSolution* ckgrpconv_bwd_get_solution(
-    const miopen::ExecutionContext* ctx,
-    const miopen::conv::ProblemDescription* problem,
-    const char* kernel_id,
-    bool use_tf32)
+extern "C" miopen::solver::ConvSolution*
+ckgrpconv_bwd_get_solution(const miopen::ExecutionContext* ctx,
+                           const miopen::conv::ProblemDescription* problem,
+                           const char* kernel_id,
+                           bool use_tf32)
 {
     try
     {
@@ -370,8 +363,7 @@ extern "C" miopen::solver::ConvSolution* ckgrpconv_bwd_get_solution(
                 return InitInvokerFactoryNHWC<false,
                                               DeviceOpGBwdPtrs<T, TCompute>,
                                               CKArgs,
-                                              miopen::conv::DataInvokeParams>(
-                    *ctx, *problem, kid);
+                                              miopen::conv::DataInvokeParams>(*ctx, *problem, kid);
             },
             use_tf32);
 

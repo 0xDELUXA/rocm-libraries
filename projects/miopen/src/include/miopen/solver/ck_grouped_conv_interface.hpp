@@ -10,7 +10,7 @@
 /// This header compiles without any CK includes. Both the MIOpen core
 /// (loader side) and the impl library (CK side) include it.
 
-#include <cstddef> // size_t
+#include <cstddef>         // size_t
 #include <miopen/miopen.h> // miopenDataType_t
 
 // Forward declarations — defined in MIOpen headers shared by both sides.
@@ -49,8 +49,7 @@ size_t ckgrpconv_kernel_list_size(const CKKernelListHandle* handle);
 
 /// Pointer to the idx-th kernel ID string (null-terminated, valid for the
 /// lifetime of the handle).  Returns nullptr on out-of-range.
-const char* ckgrpconv_kernel_list_get(const CKKernelListHandle* handle,
-                                      size_t idx);
+const char* ckgrpconv_kernel_list_get(const CKKernelListHandle* handle, size_t idx);
 
 /// Free a kernel list handle returned by any fill_valid_kernels function.
 void ckgrpconv_kernel_list_free(CKKernelListHandle* handle);
@@ -63,85 +62,70 @@ void ckgrpconv_solution_free(miopen::solver::ConvSolution* solution);
 // -- FWD direction ----------------------------------------------------------
 
 CKKernelListHandle* ckgrpconv_fwd_fill_valid_kernels(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type,
-    bool use_tf32);
+    const miopen::conv::ProblemDescription* problem, miopenDataType_t data_type, bool use_tf32);
 
-bool ckgrpconv_fwd_is_applicable(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type,
-    bool use_tf32);
+bool ckgrpconv_fwd_is_applicable(const miopen::conv::ProblemDescription* problem,
+                                 miopenDataType_t data_type,
+                                 bool use_tf32);
 
-bool ckgrpconv_fwd_is_args_supported(
-    const miopen::conv::ProblemDescription* problem,
-    const char* kernel_id,
-    miopenDataType_t data_type,
-    bool use_tf32);
+bool ckgrpconv_fwd_is_args_supported(const miopen::conv::ProblemDescription* problem,
+                                     const char* kernel_id,
+                                     miopenDataType_t data_type,
+                                     bool use_tf32);
 
-size_t ckgrpconv_fwd_get_workspace_size(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type);
+size_t ckgrpconv_fwd_get_workspace_size(const miopen::conv::ProblemDescription* problem,
+                                        miopenDataType_t data_type);
 
-miopen::solver::ConvSolution* ckgrpconv_fwd_get_solution(
-    const miopen::ExecutionContext* ctx,
-    const miopen::conv::ProblemDescription* problem,
-    const char* kernel_id,
-    bool use_tf32);
+miopen::solver::ConvSolution*
+ckgrpconv_fwd_get_solution(const miopen::ExecutionContext* ctx,
+                           const miopen::conv::ProblemDescription* problem,
+                           const char* kernel_id,
+                           bool use_tf32);
 
 // -- BWD direction ----------------------------------------------------------
 
 CKKernelListHandle* ckgrpconv_bwd_fill_valid_kernels(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type,
-    bool use_tf32);
+    const miopen::conv::ProblemDescription* problem, miopenDataType_t data_type, bool use_tf32);
 
-bool ckgrpconv_bwd_is_applicable(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type,
-    bool use_tf32);
+bool ckgrpconv_bwd_is_applicable(const miopen::conv::ProblemDescription* problem,
+                                 miopenDataType_t data_type,
+                                 bool use_tf32);
 
-bool ckgrpconv_bwd_is_args_supported(
-    const miopen::conv::ProblemDescription* problem,
-    const char* kernel_id,
-    miopenDataType_t data_type,
-    bool use_tf32);
+bool ckgrpconv_bwd_is_args_supported(const miopen::conv::ProblemDescription* problem,
+                                     const char* kernel_id,
+                                     miopenDataType_t data_type,
+                                     bool use_tf32);
 
-size_t ckgrpconv_bwd_get_workspace_size(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type);
+size_t ckgrpconv_bwd_get_workspace_size(const miopen::conv::ProblemDescription* problem,
+                                        miopenDataType_t data_type);
 
-miopen::solver::ConvSolution* ckgrpconv_bwd_get_solution(
-    const miopen::ExecutionContext* ctx,
-    const miopen::conv::ProblemDescription* problem,
-    const char* kernel_id,
-    bool use_tf32);
+miopen::solver::ConvSolution*
+ckgrpconv_bwd_get_solution(const miopen::ExecutionContext* ctx,
+                           const miopen::conv::ProblemDescription* problem,
+                           const char* kernel_id,
+                           bool use_tf32);
 
 // -- WRW direction ----------------------------------------------------------
 
 CKKernelListHandle* ckgrpconv_wrw_fill_valid_kernels(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type,
-    bool use_tf32);
+    const miopen::conv::ProblemDescription* problem, miopenDataType_t data_type, bool use_tf32);
 
-bool ckgrpconv_wrw_is_applicable(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type,
-    bool use_tf32);
+bool ckgrpconv_wrw_is_applicable(const miopen::conv::ProblemDescription* problem,
+                                 miopenDataType_t data_type,
+                                 bool use_tf32);
 
-bool ckgrpconv_wrw_is_args_supported(
-    const miopen::conv::ProblemDescription* problem,
-    const char* kernel_id,
-    miopenDataType_t data_type,
-    bool use_tf32);
+bool ckgrpconv_wrw_is_args_supported(const miopen::conv::ProblemDescription* problem,
+                                     const char* kernel_id,
+                                     miopenDataType_t data_type,
+                                     bool use_tf32);
 
-size_t ckgrpconv_wrw_get_workspace_size(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type);
+size_t ckgrpconv_wrw_get_workspace_size(const miopen::conv::ProblemDescription* problem,
+                                        miopenDataType_t data_type);
 
-miopen::solver::ConvSolution* ckgrpconv_wrw_get_solution(
-    const miopen::ExecutionContext* ctx,
-    const miopen::conv::ProblemDescription* problem,
-    const char* kernel_id,
-    bool use_tf32);
+miopen::solver::ConvSolution*
+ckgrpconv_wrw_get_solution(const miopen::ExecutionContext* ctx,
+                           const miopen::conv::ProblemDescription* problem,
+                           const char* kernel_id,
+                           bool use_tf32);
 
 } // extern "C"

@@ -382,8 +382,7 @@ bool PerformanceConfigHipImplicitGemmGroupBwdXdlops::SetNextValue(const ProblemD
 {
     if(valid_kernels.empty())
     {
-        const auto& loader =
-            miopen::solver::CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
+        const auto& loader = miopen::solver::CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
         if(!loader.IsLoaded())
             return false;
 

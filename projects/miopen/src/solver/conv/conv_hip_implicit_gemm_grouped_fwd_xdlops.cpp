@@ -336,8 +336,7 @@ void PerformanceConfigHipImplicitGemmGroupFwdXdlops::DefaultKernelFromList(
 }
 
 void PerformanceConfigHipImplicitGemmGroupFwdXdlops::HeuristicInit(
-    const ExecutionContext& ctx,
-    const ProblemDescription& problem)
+    const ExecutionContext& ctx, const ProblemDescription& problem)
 {
     index     = 0;
     kernel_id = "";
@@ -453,9 +452,8 @@ ConvHipImplicitGemmGroupFwdXdlops::Search(const ExecutionContext& ctx,
     return GenericSearch(*this, ctx, problem, invoke_ctx);
 }
 
-bool ConvHipImplicitGemmGroupFwdXdlops::IsApplicable(
-    const ExecutionContext& ctx,
-    const ProblemDescription& problem) const
+bool ConvHipImplicitGemmGroupFwdXdlops::IsApplicable(const ExecutionContext& ctx,
+                                                     const ProblemDescription& problem) const
 {
     if(env::disabled(MIOPEN_DEBUG_GROUP_CONV_IMPLICIT_GEMM_HIP_FWD_XDLOPS))
         return false;

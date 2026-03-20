@@ -26,7 +26,8 @@ class CKGroupedConvLibLoader
 {
 public:
     /// Thread-safe accessor returning a cached per-device singleton.
-    MIOPEN_INTERNALS_EXPORT static const CKGroupedConvLibLoader& Get(const std::string& device_name);
+    MIOPEN_INTERNALS_EXPORT static const CKGroupedConvLibLoader&
+    Get(const std::string& device_name);
 
     MIOPEN_INTERNALS_EXPORT bool IsLoaded() const { return loaded_; }
 
@@ -40,19 +41,20 @@ public:
                                                    miopenDataType_t dtype,
                                                    bool use_tf32) const;
 
-    MIOPEN_INTERNALS_EXPORT bool fwd_is_args_supported(const miopen::conv::ProblemDescription& problem,
-                                                       const std::string& kernel_id,
-                                                       miopenDataType_t dtype,
-                                                       bool use_tf32) const;
+    MIOPEN_INTERNALS_EXPORT bool
+    fwd_is_args_supported(const miopen::conv::ProblemDescription& problem,
+                          const std::string& kernel_id,
+                          miopenDataType_t dtype,
+                          bool use_tf32) const;
 
-    MIOPEN_INTERNALS_EXPORT size_t
-    fwd_get_workspace_size(const miopen::conv::ProblemDescription& problem,
-                           miopenDataType_t dtype) const;
+    MIOPEN_INTERNALS_EXPORT size_t fwd_get_workspace_size(
+        const miopen::conv::ProblemDescription& problem, miopenDataType_t dtype) const;
 
-    MIOPEN_INTERNALS_EXPORT ConvSolution fwd_get_solution(const ExecutionContext& ctx,
-                                                          const miopen::conv::ProblemDescription& problem,
-                                                          const std::string& kernel_id,
-                                                          bool use_tf32) const;
+    MIOPEN_INTERNALS_EXPORT ConvSolution
+    fwd_get_solution(const ExecutionContext& ctx,
+                     const miopen::conv::ProblemDescription& problem,
+                     const std::string& kernel_id,
+                     bool use_tf32) const;
 
     // -- BWD wrappers ---------------------------------------------------------
     MIOPEN_INTERNALS_EXPORT std::vector<std::string>
@@ -64,19 +66,20 @@ public:
                                                    miopenDataType_t dtype,
                                                    bool use_tf32) const;
 
-    MIOPEN_INTERNALS_EXPORT bool bwd_is_args_supported(const miopen::conv::ProblemDescription& problem,
-                                                       const std::string& kernel_id,
-                                                       miopenDataType_t dtype,
-                                                       bool use_tf32) const;
+    MIOPEN_INTERNALS_EXPORT bool
+    bwd_is_args_supported(const miopen::conv::ProblemDescription& problem,
+                          const std::string& kernel_id,
+                          miopenDataType_t dtype,
+                          bool use_tf32) const;
 
-    MIOPEN_INTERNALS_EXPORT size_t
-    bwd_get_workspace_size(const miopen::conv::ProblemDescription& problem,
-                           miopenDataType_t dtype) const;
+    MIOPEN_INTERNALS_EXPORT size_t bwd_get_workspace_size(
+        const miopen::conv::ProblemDescription& problem, miopenDataType_t dtype) const;
 
-    MIOPEN_INTERNALS_EXPORT ConvSolution bwd_get_solution(const ExecutionContext& ctx,
-                                                          const miopen::conv::ProblemDescription& problem,
-                                                          const std::string& kernel_id,
-                                                          bool use_tf32) const;
+    MIOPEN_INTERNALS_EXPORT ConvSolution
+    bwd_get_solution(const ExecutionContext& ctx,
+                     const miopen::conv::ProblemDescription& problem,
+                     const std::string& kernel_id,
+                     bool use_tf32) const;
 
     // -- WRW wrappers ---------------------------------------------------------
     MIOPEN_INTERNALS_EXPORT std::vector<std::string>
@@ -88,19 +91,20 @@ public:
                                                    miopenDataType_t dtype,
                                                    bool use_tf32) const;
 
-    MIOPEN_INTERNALS_EXPORT bool wrw_is_args_supported(const miopen::conv::ProblemDescription& problem,
-                                                       const std::string& kernel_id,
-                                                       miopenDataType_t dtype,
-                                                       bool use_tf32) const;
+    MIOPEN_INTERNALS_EXPORT bool
+    wrw_is_args_supported(const miopen::conv::ProblemDescription& problem,
+                          const std::string& kernel_id,
+                          miopenDataType_t dtype,
+                          bool use_tf32) const;
 
-    MIOPEN_INTERNALS_EXPORT size_t
-    wrw_get_workspace_size(const miopen::conv::ProblemDescription& problem,
-                           miopenDataType_t dtype) const;
+    MIOPEN_INTERNALS_EXPORT size_t wrw_get_workspace_size(
+        const miopen::conv::ProblemDescription& problem, miopenDataType_t dtype) const;
 
-    MIOPEN_INTERNALS_EXPORT ConvSolution wrw_get_solution(const ExecutionContext& ctx,
-                                                          const miopen::conv::ProblemDescription& problem,
-                                                          const std::string& kernel_id,
-                                                          bool use_tf32) const;
+    MIOPEN_INTERNALS_EXPORT ConvSolution
+    wrw_get_solution(const ExecutionContext& ctx,
+                     const miopen::conv::ProblemDescription& problem,
+                     const std::string& kernel_id,
+                     bool use_tf32) const;
 
     ~CKGroupedConvLibLoader();
 
@@ -118,7 +122,7 @@ private:
     static std::unordered_map<std::string, std::unique_ptr<CKGroupedConvLibLoader>>& Cache();
 
     void* lib_handle_ = nullptr;
-    bool loaded_       = false;
+    bool loaded_      = false;
 
     // -- Function pointer types -----------------------------------------------
     // CKKernelListHandle is declared at global scope in the interface header.
@@ -134,12 +138,15 @@ private:
     using FillValidKernelsFn = ::CKKernelListHandle* (*)(const miopen::conv::ProblemDescription*,
                                                          miopenDataType_t,
                                                          bool);
-    using IsApplicableFn     = bool (*)(const miopen::conv::ProblemDescription*, miopenDataType_t, bool);
+    using IsApplicableFn     = bool (*)(const miopen::conv::ProblemDescription*,
+                                    miopenDataType_t,
+                                    bool);
     using IsArgsSupportedFn  = bool (*)(const miopen::conv::ProblemDescription*,
                                        const char*,
                                        miopenDataType_t,
                                        bool);
-    using GetWorkspaceSizeFn = size_t (*)(const miopen::conv::ProblemDescription*, miopenDataType_t);
+    using GetWorkspaceSizeFn = size_t (*)(const miopen::conv::ProblemDescription*,
+                                          miopenDataType_t);
     using GetSolutionFn      = ConvSolution* (*)(const ExecutionContext*,
                                             const miopen::conv::ProblemDescription*,
                                             const char*,

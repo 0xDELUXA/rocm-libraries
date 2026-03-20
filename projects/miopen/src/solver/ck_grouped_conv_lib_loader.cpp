@@ -224,8 +224,7 @@ bool CKGroupedConvLibLoader::LoadSymbols()
 
 // -- Helpers ------------------------------------------------------------------
 
-std::vector<std::string>
-CKGroupedConvLibLoader::ExtractKernelList(CKKernelListHandle* handle) const
+std::vector<std::string> CKGroupedConvLibLoader::ExtractKernelList(CKKernelListHandle* handle) const
 {
     if(handle == nullptr)
         return {};
@@ -253,10 +252,8 @@ ConvSolution CKGroupedConvLibLoader::ExtractSolution(ConvSolution* ptr) const
 
 // -- FWD wrappers -------------------------------------------------------------
 
-std::vector<std::string>
-CKGroupedConvLibLoader::fwd_fill_valid_kernels(const conv::ProblemDescription& problem,
-                                               miopenDataType_t dtype,
-                                               bool use_tf32) const
+std::vector<std::string> CKGroupedConvLibLoader::fwd_fill_valid_kernels(
+    const conv::ProblemDescription& problem, miopenDataType_t dtype, bool use_tf32) const
 {
     if(!IsLoaded())
         return {};
@@ -302,10 +299,8 @@ ConvSolution CKGroupedConvLibLoader::fwd_get_solution(const ExecutionContext& ct
 
 // -- BWD wrappers -------------------------------------------------------------
 
-std::vector<std::string>
-CKGroupedConvLibLoader::bwd_fill_valid_kernels(const conv::ProblemDescription& problem,
-                                               miopenDataType_t dtype,
-                                               bool use_tf32) const
+std::vector<std::string> CKGroupedConvLibLoader::bwd_fill_valid_kernels(
+    const conv::ProblemDescription& problem, miopenDataType_t dtype, bool use_tf32) const
 {
     if(!IsLoaded())
         return {};
@@ -351,10 +346,8 @@ ConvSolution CKGroupedConvLibLoader::bwd_get_solution(const ExecutionContext& ct
 
 // -- WRW wrappers -------------------------------------------------------------
 
-std::vector<std::string>
-CKGroupedConvLibLoader::wrw_fill_valid_kernels(const conv::ProblemDescription& problem,
-                                               miopenDataType_t dtype,
-                                               bool use_tf32) const
+std::vector<std::string> CKGroupedConvLibLoader::wrw_fill_valid_kernels(
+    const conv::ProblemDescription& problem, miopenDataType_t dtype, bool use_tf32) const
 {
     if(!IsLoaded())
         return {};

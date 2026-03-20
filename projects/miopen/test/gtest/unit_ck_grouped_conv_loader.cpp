@@ -86,8 +86,8 @@ TEST(GPU_CKGroupedConvLoader_FP16, LoaderFillsValidKernels)
     const auto problem = MakeGroupedConvProblem();
     const auto kernels = loader.fwd_fill_valid_kernels(problem, miopenHalf, false);
 
-    EXPECT_FALSE(kernels.empty())
-        << "Expected at least one valid CK grouped conv kernel for " << device_name;
+    EXPECT_FALSE(kernels.empty()) << "Expected at least one valid CK grouped conv kernel for "
+                                  << device_name;
 }
 
 TEST(GPU_CKGroupedConvLoader_FP16, LoaderCachesPerDevice)
@@ -113,9 +113,9 @@ TEST(GPU_CKGroupedConvLoader_FP16, LoaderStripsDeviceSuffix)
         base_arch = base_arch.substr(0, colon_pos);
 
     // Query with a synthesized suffix and with the bare base arch
-    const auto suffixed   = base_arch + ":sramecc+:xnack-";
-    const auto& loader1   = miopen::solver::CKGroupedConvLibLoader::Get(suffixed);
-    const auto& loader2   = miopen::solver::CKGroupedConvLibLoader::Get(base_arch);
+    const auto suffixed = base_arch + ":sramecc+:xnack-";
+    const auto& loader1 = miopen::solver::CKGroupedConvLibLoader::Get(suffixed);
+    const auto& loader2 = miopen::solver::CKGroupedConvLibLoader::Get(base_arch);
 
     EXPECT_EQ(&loader1, &loader2)
         << "Suffixed and bare device names should resolve to the same cached loader";
@@ -144,17 +144,20 @@ TEST(CPU_CKGroupedConvLoader_NONE, LoaderReturnsEmptyOnFailure)
     EXPECT_FALSE(loader.fwd_is_applicable(problem, miopenHalf, false));
     EXPECT_FALSE(loader.fwd_is_args_supported(problem, "dummy_kernel", miopenHalf, false));
     EXPECT_EQ(loader.fwd_get_workspace_size(problem, miopenHalf), 0u);
-    EXPECT_EQ(loader.fwd_get_solution(ctx, problem, "dummy", false).status, miopenStatusInternalError);
+    EXPECT_EQ(loader.fwd_get_solution(ctx, problem, "dummy", false).status,
+              miopenStatusInternalError);
 
     EXPECT_TRUE(loader.bwd_fill_valid_kernels(problem, miopenHalf, false).empty());
     EXPECT_FALSE(loader.bwd_is_applicable(problem, miopenHalf, false));
     EXPECT_FALSE(loader.bwd_is_args_supported(problem, "dummy_kernel", miopenHalf, false));
     EXPECT_EQ(loader.bwd_get_workspace_size(problem, miopenHalf), 0u);
-    EXPECT_EQ(loader.bwd_get_solution(ctx, problem, "dummy", false).status, miopenStatusInternalError);
+    EXPECT_EQ(loader.bwd_get_solution(ctx, problem, "dummy", false).status,
+              miopenStatusInternalError);
 
     EXPECT_TRUE(loader.wrw_fill_valid_kernels(problem, miopenHalf, false).empty());
     EXPECT_FALSE(loader.wrw_is_applicable(problem, miopenHalf, false));
     EXPECT_FALSE(loader.wrw_is_args_supported(problem, "dummy_kernel", miopenHalf, false));
     EXPECT_EQ(loader.wrw_get_workspace_size(problem, miopenHalf), 0u);
-    EXPECT_EQ(loader.wrw_get_solution(ctx, problem, "dummy", false).status, miopenStatusInternalError);
+    EXPECT_EQ(loader.wrw_get_solution(ctx, problem, "dummy", false).status,
+              miopenStatusInternalError);
 }

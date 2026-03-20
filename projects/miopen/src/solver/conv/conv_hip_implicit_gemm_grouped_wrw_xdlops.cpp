@@ -123,12 +123,11 @@ bool PerformanceConfigHipImplicitGemmGroupWrwXdlops::ModelApplyToken(
                 return false;
 
             // Parse the AI-predicted split_k value and update member variable
-            split_k            = std::stoi(value);
-            kernel_id          = valid_kernels[heuristic_indexes[0]] + "+" + value;
-            index              = heuristic_indexes[0];
+            split_k   = std::stoi(value);
+            kernel_id = valid_kernels[heuristic_indexes[0]] + "+" + value;
+            index     = heuristic_indexes[0];
 
-            const auto& loader =
-                CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
+            const auto& loader = CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
             bool valid_split_k =
                 loader.IsLoaded() &&
                 loader.wrw_is_args_supported(
@@ -410,8 +409,7 @@ bool PerformanceConfigHipImplicitGemmGroupWrwXdlops::SetNextValue(const ProblemD
 {
     if(valid_kernels.empty())
     {
-        const auto& loader =
-            CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
+        const auto& loader = CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
         if(!loader.IsLoaded())
             return false;
 
@@ -498,8 +496,7 @@ bool PerformanceConfigHipImplicitGemmGroupWrwXdlops::IsValid(
         }
     }
 
-    const auto& loader =
-        CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
+    const auto& loader = CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
     if(!loader.IsLoaded())
         return false;
 
@@ -533,8 +530,7 @@ bool ConvHipImplicitGemmGroupWrwXdlops::IsValidPerformanceConfig(
 size_t
 ConvHipImplicitGemmGroupWrwXdlops::GetCKMaxWorkspaceSize(const ProblemDescription& problem) const
 {
-    const auto& loader =
-        CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
+    const auto& loader = CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
     if(!loader.IsLoaded())
         return 0;
 

@@ -148,7 +148,7 @@ struct CKArgs
     template <typename ConvPtr>
     bool IsSupportedBySplitK(const ConvPtr& conv_ptr, int split_k) const
     {
-        auto arg_ptr = MakeArgPtr(conv_ptr, nullptr, nullptr, nullptr, 1.0f, 0.0f, split_k);
+        auto arg_ptr        = MakeArgPtr(conv_ptr, nullptr, nullptr, nullptr, 1.0f, 0.0f, split_k);
         auto workspace_size = conv_ptr->GetWorkSpaceSize(arg_ptr.get());
         if(workspace_size != 0)
             conv_ptr->SetWorkSpacePointer(arg_ptr.get(), &workspace_size);
@@ -231,7 +231,7 @@ bool CheckIsArgSupported(const ProblemDescription& problem,
         }
     }
     return miopen::solver::IsCKArgsSupported<DeviceOpGWrwPtrs<DataType>, CKArgs>(problem,
-                                                                                  kernel_id);
+                                                                                 kernel_id);
 }
 
 template <typename DataType>
@@ -249,24 +249,16 @@ size_t GetWorkspaceSize(const ProblemDescription& problem)
 extern "C" {
 
 CKKernelListHandle* ckgrpconv_wrw_fill_valid_kernels(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type,
-    bool use_tf32)
+    const miopen::conv::ProblemDescription* problem, miopenDataType_t data_type, bool use_tf32)
 {
     try
     {
         auto result = std::make_unique<CKKernelListHandle>();
         switch(data_type)
         {
-        case miopenHalf:
-            result->kernels = FillValidKernels<ck::half_t>(*problem, use_tf32);
-            break;
-        case miopenFloat:
-            result->kernels = FillValidKernels<float>(*problem, use_tf32);
-            break;
-        case miopenInt8:
-            result->kernels = FillValidKernels<int8_t>(*problem, use_tf32);
-            break;
+        case miopenHalf: result->kernels = FillValidKernels<ck::half_t>(*problem, use_tf32); break;
+        case miopenFloat: result->kernels = FillValidKernels<float>(*problem, use_tf32); break;
+        case miopenInt8: result->kernels = FillValidKernels<int8_t>(*problem, use_tf32); break;
         case miopenBFloat16:
             result->kernels = FillValidKernels<ck::bhalf_t>(*problem, use_tf32);
             break;
@@ -280,10 +272,9 @@ CKKernelListHandle* ckgrpconv_wrw_fill_valid_kernels(
     }
 }
 
-bool ckgrpconv_wrw_is_applicable(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type,
-    bool use_tf32)
+bool ckgrpconv_wrw_is_applicable(const miopen::conv::ProblemDescription* problem,
+                                 miopenDataType_t data_type,
+                                 bool use_tf32)
 {
     try
     {
@@ -308,11 +299,10 @@ bool ckgrpconv_wrw_is_applicable(
     }
 }
 
-bool ckgrpconv_wrw_is_args_supported(
-    const miopen::conv::ProblemDescription* problem,
-    const char* kernel_id,
-    miopenDataType_t data_type,
-    bool use_tf32)
+bool ckgrpconv_wrw_is_args_supported(const miopen::conv::ProblemDescription* problem,
+                                     const char* kernel_id,
+                                     miopenDataType_t data_type,
+                                     bool use_tf32)
 {
     try
     {
@@ -321,14 +311,10 @@ bool ckgrpconv_wrw_is_args_supported(
         std::string kid(kernel_id);
         switch(data_type)
         {
-        case miopenHalf:
-            return CheckIsArgSupported<ck::half_t>(*problem, kid, use_tf32);
-        case miopenFloat:
-            return CheckIsArgSupported<float>(*problem, kid, use_tf32);
-        case miopenInt8:
-            return CheckIsArgSupported<int8_t>(*problem, kid, use_tf32);
-        case miopenBFloat16:
-            return CheckIsArgSupported<ck::bhalf_t>(*problem, kid, use_tf32);
+        case miopenHalf: return CheckIsArgSupported<ck::half_t>(*problem, kid, use_tf32);
+        case miopenFloat: return CheckIsArgSupported<float>(*problem, kid, use_tf32);
+        case miopenInt8: return CheckIsArgSupported<int8_t>(*problem, kid, use_tf32);
+        case miopenBFloat16: return CheckIsArgSupported<ck::bhalf_t>(*problem, kid, use_tf32);
         case miopenInt64:
         case miopenInt32:
         case miopenFloat8_fnuz:
@@ -344,22 +330,17 @@ bool ckgrpconv_wrw_is_args_supported(
     }
 }
 
-size_t ckgrpconv_wrw_get_workspace_size(
-    const miopen::conv::ProblemDescription* problem,
-    miopenDataType_t data_type)
+size_t ckgrpconv_wrw_get_workspace_size(const miopen::conv::ProblemDescription* problem,
+                                        miopenDataType_t data_type)
 {
     try
     {
         switch(data_type)
         {
-        case miopenHalf:
-            return GetWorkspaceSize<ck::half_t>(*problem);
-        case miopenFloat:
-            return GetWorkspaceSize<float>(*problem);
-        case miopenInt8:
-            return GetWorkspaceSize<int8_t>(*problem);
-        case miopenBFloat16:
-            return GetWorkspaceSize<ck::bhalf_t>(*problem);
+        case miopenHalf: return GetWorkspaceSize<ck::half_t>(*problem);
+        case miopenFloat: return GetWorkspaceSize<float>(*problem);
+        case miopenInt8: return GetWorkspaceSize<int8_t>(*problem);
+        case miopenBFloat16: return GetWorkspaceSize<ck::bhalf_t>(*problem);
         case miopenInt64:
         case miopenInt32:
         case miopenFloat8_fnuz:
@@ -375,11 +356,11 @@ size_t ckgrpconv_wrw_get_workspace_size(
     }
 }
 
-miopen::solver::ConvSolution* ckgrpconv_wrw_get_solution(
-    const miopen::ExecutionContext* ctx,
-    const miopen::conv::ProblemDescription* problem,
-    const char* kernel_id,
-    bool use_tf32)
+miopen::solver::ConvSolution*
+ckgrpconv_wrw_get_solution(const miopen::ExecutionContext* ctx,
+                           const miopen::conv::ProblemDescription* problem,
+                           const char* kernel_id,
+                           bool use_tf32)
 {
     try
     {
@@ -394,10 +375,10 @@ miopen::solver::ConvSolution* ckgrpconv_wrw_get_solution(
                 using T        = decltype(data_type_val);
                 using TCompute = decltype(compute_type_val);
                 return miopen::solver::InitInvokerFactoryWrwNCHW<2,
-                                                                  false,
-                                                                  DeviceOpGWrwPtrs<T, TCompute>,
-                                                                  CKArgs,
-                                                                  miopen::conv::WrWInvokeParams>(
+                                                                 false,
+                                                                 DeviceOpGWrwPtrs<T, TCompute>,
+                                                                 CKArgs,
+                                                                 miopen::conv::WrWInvokeParams>(
                     *ctx, *problem, kid);
             },
             [&](auto data_type_val, auto compute_type_val) {
