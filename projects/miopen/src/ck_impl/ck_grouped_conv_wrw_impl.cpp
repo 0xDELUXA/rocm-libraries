@@ -8,7 +8,6 @@
 #include <miopen/solver/ck_utility_common.hpp>
 #include <miopen/solver/implicitgemm_ck_util.hpp>
 #include <miopen/conv/wrw_invoke_params.hpp>
-#include <miopen/solver/problem_description_interpreter.hpp>
 #include <miopen/conv/problem_description.hpp>
 #include <miopen/execution_context.hpp>
 
@@ -37,18 +36,9 @@ struct CKArgs
     {
         using miopen::solver::ProblemInterpreter;
 
-        G               = ProblemInterpreter::GetGroupCountG(problem);
-        N               = ProblemInterpreter::GetBatchN(problem);
-        K1              = ProblemInterpreter::GetOutputChannelK(problem);
-        C1              = ProblemInterpreter::GetInputChannelC(problem);
-        C               = C1 / G;
-        K               = K1 / G;
-        Hi              = ProblemInterpreter::GetInputHeightHi(problem);
-        Wi              = ProblemInterpreter::GetInputWidthWi(problem);
-        Ho              = ProblemInterpreter::GetOutputHeightHo(problem);
-        Wo              = ProblemInterpreter::GetOutputWidthWo(problem);
-        Y               = ProblemInterpreter::GetFilterHeightY(problem);
-        X               = ProblemInterpreter::GetFilterWidthX(problem);
+        auto d = ExtractConvDims(problem);
+        G = d.G; N = d.N; K1 = d.K1; C1 = d.C1; C = d.C; K = d.K;
+        Hi = d.Hi; Wi = d.Wi; Ho = d.Ho; Wo = d.Wo; Y = d.Y; X = d.X;
         data_type       = ProblemInterpreter::GetOutputDataType(problem);
         alpha_beta_case = ProblemInterpreter::GetAlphaBetaCase(problem);
         input           = {G, N, C, Hi, Wi};

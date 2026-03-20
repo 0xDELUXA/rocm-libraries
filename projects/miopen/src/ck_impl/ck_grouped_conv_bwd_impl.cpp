@@ -12,7 +12,6 @@
 #include <miopen/solver/ck_grouped_conv_interface.hpp>
 #include <miopen/solver/ck_utility_common.hpp>
 #include <miopen/solver/implicitgemm_ck_util.hpp>
-#include <miopen/solver/problem_description_interpreter.hpp>
 #include <miopen/conv/data_invoke_params.hpp>
 #include <miopen/conv/problem_description.hpp>
 #include <miopen/execution_context.hpp>
@@ -42,18 +41,9 @@ struct CKArgs
 {
     CKArgs(const ProblemDescription& problem)
     {
-        G               = ProblemInterpreter::GetGroupCountG(problem);
-        N               = ProblemInterpreter::GetBatchN(problem);
-        K1              = ProblemInterpreter::GetOutputChannelK(problem);
-        C1              = ProblemInterpreter::GetInputChannelC(problem);
-        C               = C1 / G;
-        K               = K1 / G;
-        Hi              = ProblemInterpreter::GetInputHeightHi(problem);
-        Wi              = ProblemInterpreter::GetInputWidthWi(problem);
-        Ho              = ProblemInterpreter::GetOutputHeightHo(problem);
-        Wo              = ProblemInterpreter::GetOutputWidthWo(problem);
-        Y               = ProblemInterpreter::GetFilterHeightY(problem);
-        X               = ProblemInterpreter::GetFilterWidthX(problem);
+        auto d = ExtractConvDims(problem);
+        G = d.G; N = d.N; K1 = d.K1; C1 = d.C1; C = d.C; K = d.K;
+        Hi = d.Hi; Wi = d.Wi; Ho = d.Ho; Wo = d.Wo; Y = d.Y; X = d.X;
         data_type       = ProblemInterpreter::GetOutputDataType(problem);
         alpha_beta_case = ProblemInterpreter::GetAlphaBetaCase(problem);
 
@@ -208,6 +198,41 @@ bool CheckCKApplicability(const ProblemDescription& problem, bool use_tf32)
     return IsCKApplicable<DeviceOpGBwdPtrs<DataType>, CKArgs>(problem);
 }
 
+template <typename DataType>
+std::vector<std::string> FillValidKernels(const ProblemDescription& problem, bool use_tf32)
+{
+    if constexpr(std::is_same_v<DataType, float>)
+    {
+        if(use_tf32)
+        {
+            return FillValidKernelsIDs<DeviceOpGBwdPtrs<DataType, ck::tf32_t>, CKArgs>(problem);
+        }
+    }
+    return FillValidKernelsIDs<DeviceOpGBwdPtrs<DataType>, CKArgs>(problem);
+}
+
+template <typename DataType>
+bool CheckIsArgSupported(const ProblemDescription& problem,
+                         const std::string& kernel_id,
+                         bool use_tf32)
+{
+    if constexpr(std::is_same_v<DataType, float>)
+    {
+        if(use_tf32 &&
+           IsCKArgsSupported<DeviceOpGBwdPtrs<DataType, ck::tf32_t>, CKArgs>(problem, kernel_id))
+        {
+            return true;
+        }
+    }
+    return IsCKArgsSupported<DeviceOpGBwdPtrs<DataType>, CKArgs>(problem, kernel_id);
+}
+
+template <typename DataType>
+size_t GetWorkspaceSize(const ProblemDescription& problem)
+{
+    return GetCKSplitkMaxWorkspaceSize<DeviceOpGBwdPtrs<DataType>, CKArgs>(problem);
+}
+
 } // anonymous namespace
 
 // ---------------------------------------------------------------------------
@@ -222,22 +247,12 @@ extern "C" CKKernelListHandle* ckgrpconv_bwd_fill_valid_kernels(
         auto result = std::make_unique<CKKernelListHandle>();
         switch(data_type)
         {
-        case miopenHalf:
-            result->kernels = FillValidKernelsIDs<DeviceOpGBwdPtrs<ck::half_t>, CKArgs>(*problem);
-            break;
-        case miopenFloat:
-            if(use_tf32)
-                result->kernels =
-                    FillValidKernelsIDs<DeviceOpGBwdPtrs<float, ck::tf32_t>, CKArgs>(*problem);
-            else
-                result->kernels = FillValidKernelsIDs<DeviceOpGBwdPtrs<float>, CKArgs>(*problem);
-            break;
+        case miopenHalf: result->kernels = FillValidKernels<ck::half_t>(*problem, use_tf32); break;
+        case miopenFloat: result->kernels = FillValidKernels<float>(*problem, use_tf32); break;
         case miopenBFloat16:
-            result->kernels = FillValidKernelsIDs<DeviceOpGBwdPtrs<ck::bhalf_t>, CKArgs>(*problem);
+            result->kernels = FillValidKernels<ck::bhalf_t>(*problem, use_tf32);
             break;
-        case miopenInt8:
-            result->kernels = FillValidKernelsIDs<DeviceOpGBwdPtrs<int8_t>, CKArgs>(*problem);
-            break;
+        case miopenInt8: result->kernels = FillValidKernels<int8_t>(*problem, use_tf32); break;
         default: return nullptr;
         }
         return result.release();
@@ -279,19 +294,12 @@ extern "C" bool ckgrpconv_bwd_is_args_supported(const miopen::conv::ProblemDescr
         if(!kernel_id)
             return false;
         std::string kid(kernel_id);
-
         switch(data_type)
         {
-        case miopenHalf:
-            return IsCKArgsSupported<DeviceOpGBwdPtrs<ck::half_t>, CKArgs>(*problem, kid);
-        case miopenFloat:
-            if(use_tf32 &&
-               IsCKArgsSupported<DeviceOpGBwdPtrs<float, ck::tf32_t>, CKArgs>(*problem, kid))
-                return true;
-            return IsCKArgsSupported<DeviceOpGBwdPtrs<float>, CKArgs>(*problem, kid);
-        case miopenInt8: return IsCKArgsSupported<DeviceOpGBwdPtrs<int8_t>, CKArgs>(*problem, kid);
-        case miopenBFloat16:
-            return IsCKArgsSupported<DeviceOpGBwdPtrs<ck::bhalf_t>, CKArgs>(*problem, kid);
+        case miopenHalf: return CheckIsArgSupported<ck::half_t>(*problem, kid, use_tf32);
+        case miopenFloat: return CheckIsArgSupported<float>(*problem, kid, use_tf32);
+        case miopenInt8: return CheckIsArgSupported<int8_t>(*problem, kid, use_tf32);
+        case miopenBFloat16: return CheckIsArgSupported<ck::bhalf_t>(*problem, kid, use_tf32);
         default: return false;
         }
     }
@@ -306,26 +314,14 @@ extern "C" size_t ckgrpconv_bwd_get_workspace_size(const miopen::conv::ProblemDe
 {
     try
     {
-        size_t ck_ws_size = 0;
         switch(data_type)
         {
-        case miopenHalf:
-            ck_ws_size =
-                GetCKSplitkMaxWorkspaceSize<DeviceOpGBwdPtrs<ck::half_t>, CKArgs>(*problem);
-            break;
-        case miopenFloat:
-            ck_ws_size = GetCKSplitkMaxWorkspaceSize<DeviceOpGBwdPtrs<float>, CKArgs>(*problem);
-            break;
-        case miopenInt8:
-            ck_ws_size = GetCKSplitkMaxWorkspaceSize<DeviceOpGBwdPtrs<int8_t>, CKArgs>(*problem);
-            break;
-        case miopenBFloat16:
-            ck_ws_size =
-                GetCKSplitkMaxWorkspaceSize<DeviceOpGBwdPtrs<ck::bhalf_t>, CKArgs>(*problem);
-            break;
+        case miopenHalf: return GetWorkspaceSize<ck::half_t>(*problem);
+        case miopenFloat: return GetWorkspaceSize<float>(*problem);
+        case miopenInt8: return GetWorkspaceSize<int8_t>(*problem);
+        case miopenBFloat16: return GetWorkspaceSize<ck::bhalf_t>(*problem);
         default: return 0;
         }
-        return ck_ws_size;
     }
     catch(...)
     {
