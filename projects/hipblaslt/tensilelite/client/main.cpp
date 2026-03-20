@@ -1056,9 +1056,6 @@ int main(int argc, const char* argv[])
         {
             benchmarkTimer->setIFlushTimeUs(icacheFlush ? flushTimeMs * 1000 : 0.f);
 
-            // Track which problems have been queued for async CPU reference.
-            int nextToQueue = firstProblemIdx + 1;
-
             for(int problemIdx = firstProblemIdx; problemIdx <= lastProblemIdx; problemIdx++)
             {
                 auto problem = problems[problemIdx].get();
@@ -1095,28 +1092,13 @@ int main(int argc, const char* argv[])
                         maxRotatingBufferNum, problem, inputs, stream);
                     static_cast<void>(hipDeviceSynchronize());
                 }
-                // Queue problems ahead for async CPU reference.
-                // When data is problem-independent, cpuInput.valid is fixed at
-                // construction and we can safely queue 2 ahead.  When data is
-                // problem-dependent, prepareCPUInputs overwrites cpuInput.valid
-                // which prepareGPUInputs reads, so limit to 1 ahead.
-                if(referenceValidator && nextToQueue <= lastProblemIdx)
+                // Queue next problem for async CPU reference (1 ahead).
+                if(referenceValidator && problemIdx + 1 <= lastProblemIdx)
                 {
                     ScopedTimer timer("cpu_reference_precompute");
-                    int maxAhead = dataInit->hasProblemDependentData()
-                                       ? 1
-                                       : ReferenceValidator::kQueueDepth;
-                    int slotsAvailable
-                        = std::min(maxAhead,
-                                   ReferenceValidator::kQueueDepth
-                                       - referenceValidator->pendingCount());
-                    int count = 0;
-                    ContractionProblem* upcoming[ReferenceValidator::kQueueDepth];
-                    while(count < slotsAvailable && nextToQueue <= lastProblemIdx)
-                        upcoming[count++] = problems[nextToQueue++].get();
-                    if(count > 0)
-                        referenceValidator->startPrecomputeForNextProblem(
-                            upcoming, count);
+                    ContractionProblem* next = problems[problemIdx + 1].get();
+                    referenceValidator->startPrecomputeForNextProblem(
+                        &next, 1);
                 }
 
                 bool resetInput = false;

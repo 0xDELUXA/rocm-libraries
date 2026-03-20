@@ -2788,7 +2788,7 @@ namespace TensileLite
             {
                 {
                     ScopedTimer t("async_reset_probdep");
-                    if(m_cpuPtrs.empty() && m_problemDependentData)
+                    if(m_problemDependentData)
                     {
                         ScopedTimer t2("async_reset_cpuinit");
                         initializeCPUInputs(problem);
@@ -2841,8 +2841,7 @@ namespace TensileLite
                 }
             }
 
-            if(m_cpuPtrs.empty())
-                initializeConstantInputs(problem);
+            initializeConstantInputs(problem);
 
             m_cachedGPUInputs = ConvertToProblemInputs(problem, true);
 

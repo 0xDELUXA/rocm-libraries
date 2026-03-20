@@ -1060,15 +1060,13 @@ namespace TensileLite
                 if(!gemmProblem)
                     continue;
 
-                // Prepare CPU data (overwrites m_cpuPtrs — safe because
-                // previous deep copies are independent).
                 std::shared_ptr<ProblemInputs> snapshot;
                 {
                     ScopedTimer timer("cpu_data_init");
                     snapshot = m_dataInit->prepareCPUInputs(problems[i]);
                 }
 
-                // Deep-copy on main thread (~1ms) so m_cpuPtrs is free
+                // Deep-copy on main thread (~1ms) so buffers are free
                 // for the next iteration.
                 auto& src     = dynamic_cast<ContractionInputs const&>(*snapshot);
                 auto deepCopy = deepCopyGemmInputs(*gemmProblem, src);
@@ -1088,6 +1086,7 @@ namespace TensileLite
                 }
                 m_workerCv.notify_one();
             }
+
         }
 
         int ReferenceValidator::pendingCount() const
