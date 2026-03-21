@@ -21,7 +21,7 @@
 # SOFTWARE.
 #
 ################################################################################
-from copy import deepcopy
+from copy import copy
 from functools import lru_cache
 
 from Tensile.Common.Constants import MAX_FILENAME_LENGTH
@@ -30,8 +30,19 @@ from Tensile.Common.RequiredParameters import getRequiredParametersMin, getRequi
 from .Problem import ProblemType
 
 
+def _copy_state_for_key(state):
+  state_copy = copy(state)
+  if hasattr(state_copy, "_state"):
+    state_copy._state = copy(state_copy._state)
+    state_copy._state["ProblemType"] = copy(state_copy._state["ProblemType"])
+    return state_copy
+
+  state_copy["ProblemType"] = copy(state["ProblemType"])
+  return state_copy
+
+
 def getKeyNoInternalArgs(state, splitGSU: bool):
-  state_copy = deepcopy(state)
+  state_copy = _copy_state_for_key(state)
   state_copy["ProblemType"]["GroupedGemm"] = False
   if splitGSU:
     state_copy["GlobalSplitU"] = "M" if (state_copy["GlobalSplitU"] > 1 or state_copy["GlobalSplitU"] == -1) else state_copy["GlobalSplitU"]
