@@ -63,17 +63,15 @@ namespace rocRoller
              */
             struct TagExtent
             {
-                using CategoryKey            = std::tuple<MemoryType, LayoutType, DataType, int>;
-                using CrossSizeCategoryKey   = std::tuple<MemoryType, LayoutType, DataType>;
-                int                  baseTag = -1;
-                std::set<int>        tags;
-                MemoryType           memoryType = MemoryType::None;
-                LayoutType           layoutType = LayoutType::None;
-                DataType             dataType   = DataType::None;
-                int                  totalSize() const;
-                CrossSizeCategoryKey crossSizeTypeKey() const;
-                std::vector<int>     sizes;
-                GraphExtent          extent;
+                using CategoryKey = std::tuple<MemoryType, LayoutType, DataType, int>;
+
+                int              baseTag = -1;
+                std::set<int>    tags;
+                MemoryType       memoryType = MemoryType::None;
+                LayoutType       layoutType = LayoutType::None;
+                DataType         dataType   = DataType::None;
+                std::vector<int> sizes;
+                GraphExtent      extent;
 
                 std::vector<GraphExtent> gaps;
 
@@ -137,11 +135,6 @@ namespace rocRoller
              */
             std::map<int, int> findAliasCandidates(KernelGraph const& kgraph);
 
-            std::map<TagExtent::CrossSizeCategoryKey, std::list<TagExtent>>
-                               getGroupedTagExtentsCrossSize(KernelGraph const& kgraph);
-            std::map<int, int> findCrossSizeAliasCandidatesForExtents(KernelGraph const&   kgraph,
-                                                                      std::list<TagExtent> extents);
-            std::map<int, int> findAliasCandidatesCrossSize(KernelGraph const& kgraph);
         }
     }
 }
