@@ -26,8 +26,14 @@ from . import BenchmarkProblems
 from . import ClientWriter
 from . import LibraryIO
 from . import LibraryLogic
-from .Common import globalParameters, print1, printWarning, ensurePath, assignGlobalParameters, \
-                    restoreDefaultGlobalParameters, HR, __version__
+from Tensile import __version__
+from .Common.Constants import HR
+from .Common.GlobalParameters import (
+    assignGlobalParameters,
+    globalParameters,
+    restoreDefaultGlobalParameters,
+)
+from .Common.Utilities import ensurePath, print1, printWarning
 from .Tensile import addCommonArguments, argUpdatedGlobalParameters
 from .SolutionStructs import ProblemSizes
 from .Toolchain.Validators import validateToolchain
@@ -129,7 +135,9 @@ def runBenchmarking(solutions, problemSizes, outPath, update, cxxCompiler: str, 
     benchmarkDir = os.path.join(outPath, shortName)
     sourceDir = os.path.join(benchmarkDir, "source")
     resultsDir = os.path.normpath(os.path.join(globalParameters["WorkingPath"], "Data"))
-    libraryFile = os.path.join(resultsDir, "benchmark.yaml")
+    solutionsFile = LibraryIO.formatFilename(
+        os.path.join(resultsDir, "benchmark"), globalParameters["LibraryFormat"]
+    )
 
     ensurePath(sourceDir)
     ensurePath(resultsDir)
@@ -149,10 +157,17 @@ def runBenchmarking(solutions, problemSizes, outPath, update, cxxCompiler: str, 
     if returncode:
         printWarning("Benchmarking Client exited with code {}. Trying to continue".format(returncode))
 
-    # write solutions yaml file
+    # write benchmark solutions file
     for sol in solutions:
         sol["ISA"] = list(sol["ISA"])
-    LibraryIO.writeSolutions(libraryFile, problemSizes, "", solutions)
+    LibraryIO.writeSolutions(
+        solutionsFile,
+        problemSizes,
+        None,
+        None,
+        solutions,
+        format=globalParameters["LibraryFormat"],
+    )
 
     popWorkingPath() # benchmark
 
@@ -160,7 +175,12 @@ def runBenchmarking(solutions, problemSizes, outPath, update, cxxCompiler: str, 
     out = os.path.join(globalParameters["WorkingPath"], "2_BenchmarkData")
     ensurePath(out)
     shutil.copy(os.path.join(resultsDir, "benchmark.csv"), os.path.join(out, "benchmark.csv"))
-    shutil.copy(os.path.join(resultsDir, "benchmark.yaml"), os.path.join(out, "benchmark.yaml"))
+    shutil.copy(
+        solutionsFile,
+        LibraryIO.formatFilename(
+            os.path.join(out, "benchmark"), globalParameters["LibraryFormat"]
+        ),
+    )
 
 
 def TensileRetuneLibrary(userArgs):
