@@ -325,8 +325,12 @@ class MasterSolutionLibrary:
     @classmethod
     def FixSolutionIndices(cls, solutions):
         # fix missing and duplicate solution indices.
+        indices = [s.index for s in solutions]
+        if len(indices) == len(set(indices)) and all(idx is not None for idx in indices):
+            return
+
         try:
-            maxSolutionIdx = max([s.index for s in solutions if s.index is not None])
+            maxSolutionIdx = max([idx for idx in indices if idx is not None])
         except ValueError:
             maxSolutionIdx = -1
 
@@ -596,8 +600,14 @@ class MasterSolutionLibrary:
 
     def applyNaming(self, splitGSU: bool):
         for s in list(self.solutions.values()):
-            s.name = getSolutionNameMin(s.originalSolution.getKernels()[0], splitGSU)
-            s.kernelName = getKernelNameMin(s.originalSolution.getKernels()[0], splitGSU)
+            if s.name is not None and s.kernelName is not None:
+                continue
+
+            kernel = s.originalSolution.getKernels()[0]
+            if s.name is None:
+                s.name = getSolutionNameMin(kernel, splitGSU)
+            if s.kernelName is None:
+                s.kernelName = getKernelNameMin(kernel, splitGSU)
 
     def remapSolutionIndicesStartingFrom(self, curIndex):
         reIndexMap = {}
