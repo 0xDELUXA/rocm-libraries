@@ -52,6 +52,8 @@ namespace rocRoller
                  * Returns true if `this` is entirely within `gap`.
                  */
                 bool isWithin(KernelGraph const& kgraph, GraphExtent const& gap) const;
+
+                bool isAfter(KernelGraph const& kgraph, GraphExtent const& other) const;
             };
 
             std::ostream& operator<<(std::ostream& stream, GraphExtent const& extent);
@@ -65,8 +67,8 @@ namespace rocRoller
             {
                 using CategoryKey = std::tuple<MemoryType, LayoutType, DataType, int>;
 
-                using CompatibleKey = std::tuple<MemoryType, DataType, int>;
-                CompatibleKey compatibleKey() const;
+                //using CompatibleKey = std::tuple<MemoryType, DataType, int>;
+                //CompatibleKey compatibleKey() const;
 
                 int              baseTag = -1;
                 std::set<int>    tags;
@@ -122,8 +124,8 @@ namespace rocRoller
              * Gets all the extents for all the MacroTile tags in `kgraph`,
              * grouped by type & size.
              */
-            //std::map<TagExtent::CategoryKey, std::list<TagExtent>>
-            std::map<TagExtent::CompatibleKey, std::list<TagExtent>>
+            std::map<TagExtent::CategoryKey, std::list<TagExtent>>
+                //std::map<TagExtent::CompatibleKey, std::list<TagExtent>>
                 getGroupedTagExtents(KernelGraph const& kgraph);
 
             /**

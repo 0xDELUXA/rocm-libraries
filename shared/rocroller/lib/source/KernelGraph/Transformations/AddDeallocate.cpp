@@ -15,6 +15,8 @@
 #include <rocRoller/KernelGraph/Utils.hpp>
 #include <rocRoller/Utilities/Error.hpp>
 
+#include <rocRoller/KernelGraph/CoordinateGraph/CoordinateEdge.hpp>
+
 namespace rocRoller::KernelGraph
 {
     using namespace CoordinateGraph;
@@ -201,6 +203,30 @@ namespace rocRoller::KernelGraph
         auto tracer    = LastRWTracer(graph);
         auto locations = tracer.lastRWLocations();
 
+        namespace CT = CoordinateGraph;
+        auto isAlias = [&graph](int idx) {
+            auto edge = graph.coordinates.getEdge(idx);
+            if(!std::holds_alternative<CT::DataFlowEdge>(edge))
+                return false;
+            return std::holds_alternative<CT::Alias>(std::get<CT::DataFlowEdge>(edge));
+        };
+        std::map<int, int> borrowerToLender;
+        for(auto edge : graph.coordinates.getEdges().filter(isAlias))
+        {
+            auto loc = graph.coordinates.getLocation(edge);
+            AssertFatal(loc.incoming.size() == 1, ShowValue(loc.incoming.size()));
+            AssertFatal(loc.outgoing.size() == 1, ShowValue(loc.outgoing.size()));
+            auto src              = loc.incoming[0]; // borrower
+            auto dst              = loc.outgoing[0]; // lender
+            borrowerToLender[src] = dst;
+            // Extend lender's last-use set so its Deallocate is placed
+            // late enough for the borrower to finish first.
+            if(locations.contains(src) && locations.contains(dst))
+            {
+                locations[dst].insert(locations[src].begin(), locations[src].end());
+            }
+        }
+
         // Map of <incoming Sequence edges to add, tags to deallocate>
         std::map<std::set<int>, std::vector<int>> deallocateNodesToAdd;
 
@@ -212,6 +238,39 @@ namespace rocRoller::KernelGraph
             simplifyDependencies(graph, dependencies);
 
             deallocateNodesToAdd[dependencies].push_back(coordinate);
+        }
+
+        if(!borrowerToLender.empty())
+        {
+            // Build reverse map: lender -> set of direct borrowers
+            std::map<int, std::set<int>> lenderToBorrowers;
+            for(auto const& [src, dst] : borrowerToLender)
+                lenderToBorrowers[dst].insert(src);
+            std::map<int, int>      deletionPriority;
+            std::function<int(int)> getPriority = [&](int coord) -> int {
+                auto it = deletionPriority.find(coord);
+                if(it != deletionPriority.end())
+                    return it->second;
+                int  priority    = 0;
+                auto borrowersIt = lenderToBorrowers.find(coord);
+                if(borrowersIt != lenderToBorrowers.end())
+                {
+                    for(int borrower : borrowersIt->second)
+                        priority = std::max(priority, 1 + getPriority(borrower));
+                }
+                deletionPriority[coord] = priority;
+                return priority;
+            };
+            for(auto& [controls, coords] : deallocateNodesToAdd)
+            {
+                for(int c : coords)
+                    getPriority(c);
+                std::stable_sort(coords.begin(), coords.end(), [&deletionPriority](int a, int b) {
+                    auto pa = deletionPriority.count(a) ? deletionPriority.at(a) : 0;
+                    auto pb = deletionPriority.count(b) ? deletionPriority.at(b) : 0;
+                    return pa < pb;
+                });
+            }
         }
 
         // Commit
