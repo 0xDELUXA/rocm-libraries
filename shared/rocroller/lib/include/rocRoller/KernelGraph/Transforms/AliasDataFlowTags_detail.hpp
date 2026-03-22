@@ -135,6 +135,11 @@ namespace rocRoller
              */
             std::map<int, int> findAliasCandidates(KernelGraph const& kgraph);
 
+            std::optional<std::vector<std::pair<int, int>>> computeNeededSequenceEdges(
+                KernelGraph const& kgraph, GraphExtent const& innerExtent, GraphExtent const& gap);
+
+            int addSchedulingEdgesForAlias(KernelGraph& kgraph);
+
         }
     }
 }

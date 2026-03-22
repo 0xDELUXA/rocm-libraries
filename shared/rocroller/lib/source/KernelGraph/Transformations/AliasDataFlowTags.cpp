@@ -544,11 +544,119 @@ namespace rocRoller
                 return aliases;
             }
 
+            std::optional<std::vector<std::pair<int, int>>> computeNeededSequenceEdges(
+                KernelGraph const& kgraph, GraphExtent const& innerExtent, GraphExtent const& gap)
+            {
+                namespace CG = ControlGraph;
+                std::vector<std::pair<int, int>> needed;
+                // For inner to fit in gap, we need:
+                //   gap.begin is before inner.begin  (gap opens before inner starts)
+                //   inner.end is before gap.end      (inner finishes before gap closes)
+                for(int gapBegin : gap.begin)
+                {
+                    for(int inBegin : innerExtent.begin)
+                    {
+                        if(inBegin == gapBegin)
+                            continue;
+                        auto order = kgraph.control.compareNodes(
+                            rocRoller::UpdateCache, gapBegin, inBegin);
+                        if(order == CG::NodeOrdering::LeftFirst)
+                            continue;
+                        if(order == CG::NodeOrdering::Undefined)
+                        {
+                            needed.emplace_back(gapBegin, inBegin);
+                            continue;
+                        }
+                        // RightFirst or body relationship: impossible to fix
+                        return std::nullopt;
+                    }
+                }
+                for(int gapEnd : gap.end)
+                {
+                    for(int inEnd : innerExtent.end)
+                    {
+                        if(inEnd == gapEnd)
+                            continue;
+                        auto order
+                            = kgraph.control.compareNodes(rocRoller::UpdateCache, inEnd, gapEnd);
+                        if(order == CG::NodeOrdering::LeftFirst)
+                            continue;
+                        if(order == CG::NodeOrdering::Undefined)
+                        {
+                            needed.emplace_back(inEnd, gapEnd);
+                            continue;
+                        }
+                        return std::nullopt;
+                    }
+                }
+                return needed;
+            }
+            int addSchedulingEdgesForAlias(KernelGraph& kgraph)
+            {
+                namespace CG        = ControlGraph;
+                int  edgesAdded     = 0;
+                auto groupedExtents = getGroupedTagExtents(kgraph);
+                for(auto& [typeKey, extents] : groupedExtents)
+                {
+                    for(auto outer = extents.begin(); outer != extents.end(); ++outer)
+                    {
+                        for(auto inner = extents.begin(); inner != extents.end(); ++inner)
+                        {
+                            if(outer == inner)
+                                continue;
+                            // Skip if inner already fits (no scheduling help needed)
+                            if(inner->fitsWithin(kgraph, *outer))
+                                continue;
+                            for(auto const& gap : outer->gaps)
+                            {
+                                auto needed
+                                    = computeNeededSequenceEdges(kgraph, inner->extent, gap);
+                                if(!needed.has_value() || needed->empty())
+                                    continue;
+                                // Verify none of the needed edges would create a cycle.
+                                // If adding from->to but 'to' is already ordered before
+                                // 'from', that would create a cycle.
+                                bool canAdd = true;
+                                for(auto const& [from, to] : *needed)
+                                {
+                                    auto reverseOrder = kgraph.control.compareNodes(
+                                        rocRoller::UpdateCache, to, from);
+                                    if(reverseOrder == CG::NodeOrdering::LeftFirst)
+                                    {
+                                        canAdd = false;
+                                        break;
+                                    }
+                                }
+                                if(!canAdd)
+                                    continue;
+                                for(auto const& [from, to] : *needed)
+                                {
+                                    // Only add if not already ordered (avoid redundant edges)
+                                    auto existingOrder = kgraph.control.compareNodes(
+                                        rocRoller::UpdateCache, from, to);
+                                    if(existingOrder != CG::NodeOrdering::LeftFirst)
+                                    {
+                                        kgraph.control.addElement(CG::Sequence{}, {from}, {to});
+                                        edgesAdded++;
+                                        Log::debug("ScheduleForAlias: {} -> {}", from, to);
+                                    }
+                                }
+                                // Found a viable gap for this inner; stop checking gaps
+                                break;
+                            }
+                        }
+                    }
+                }
+                return edgesAdded;
+            }
+
         }
 
         KernelGraph AliasDataFlowTags::apply(KernelGraph const& original)
         {
             auto rv = original;
+
+            auto edgesAdded = AliasDataFlowTagsDetail::addSchedulingEdgesForAlias(rv);
 
             auto aliases = AliasDataFlowTagsDetail::findAliasCandidates(rv);
 
