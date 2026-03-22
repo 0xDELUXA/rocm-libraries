@@ -74,26 +74,6 @@ namespace rocRoller
                 return true;
             }
 
-            bool GraphExtent::isAfter(KernelGraph const& kgraph, GraphExtent const& other) const
-            {
-                if(begin.empty() || other.end.empty())
-                    return false;
-                for(int otherEnd : other.end)
-                {
-                    for(int thisBegin : begin)
-                    {
-                        if(thisBegin != otherEnd)
-                        {
-                            auto order = kgraph.control.compareNodes(
-                                rocRoller::UpdateCache, otherEnd, thisBegin);
-                            if(order != ControlGraph::NodeOrdering::LeftFirst)
-                                return false;
-                        }
-                    }
-                }
-                return true;
-            }
-
             std::string GraphExtent::toString() const
             {
                 return fmt::format("[{}..{}]", begin, end);
@@ -113,13 +93,13 @@ namespace rocRoller
                 return std::make_tuple(memoryType, layoutType, dataType, size);
             }
 
-            //TagExtent::CompatibleKey TagExtent::compatibleKey() const
-            //{
-            //    int size = 1;
-            //    for(int s : sizes)
-            //        size *= s;
-            //    return std::make_tuple(memoryType, dataType, size);
-            //}
+            TagExtent::CompatibleKey TagExtent::compatibleKey() const
+            {
+                int size = 1;
+                for(int s : sizes)
+                    size *= s;
+                return std::make_tuple(memoryType, dataType, size);
+            }
 
             std::string TagExtent::toString() const
             {
@@ -225,13 +205,13 @@ namespace rocRoller
             {
                 bool found = false;
 
-                AssertFatal(
-                    typeKey() == inner.typeKey(), ShowValue(typeKey()), ShowValue(inner.typeKey()));
-                //AssertFatal(compatibleKey() == inner.compatibleKey(),
-                //            ShowValue(memoryType),
-                //            ShowValue(inner.memoryType),
-                //            ShowValue(dataType),
-                //            ShowValue(inner.dataType));
+                //AssertFatal(
+                //    typeKey() == inner.typeKey(), ShowValue(typeKey()), ShowValue(inner.typeKey()));
+                AssertFatal(compatibleKey() == inner.compatibleKey(),
+                            ShowValue(memoryType),
+                            ShowValue(inner.memoryType),
+                            ShowValue(dataType),
+                            ShowValue(inner.dataType));
 
                 AssertFatal(dataType != DataType::None, ShowValue(dataType));
 
@@ -240,38 +220,18 @@ namespace rocRoller
 
                 auto whichGap = std::find_if(gaps.begin(), gaps.end(), itFits);
 
-                //AssertFatal(whichGap != gaps.end());
+                AssertFatal(whichGap != gaps.end());
 
-                if(whichGap != gaps.end())
-                {
-                    GraphExtent before{std::move(whichGap->begin), inner.extent.begin};
-                    GraphExtent after{inner.extent.end, std::move(whichGap->end)};
+                GraphExtent before{std::move(whichGap->begin), inner.extent.begin};
+                GraphExtent after{inner.extent.end, std::move(whichGap->end)};
 
-                    std::vector<GraphExtent> newGaps;
-                    newGaps.push_back(before);
-                    newGaps.insert(newGaps.end(), inner.gaps.begin(), inner.gaps.end());
-                    newGaps.push_back(after);
+                std::vector<GraphExtent> newGaps;
+                newGaps.push_back(before);
+                newGaps.insert(newGaps.end(), inner.gaps.begin(), inner.gaps.end());
+                newGaps.push_back(after);
 
-                    auto iter = gaps.erase(whichGap);
-                    gaps.insert(iter, newGaps.begin(), newGaps.end());
-                }
-                else if(inner.extent.isAfter(kgraph, extent))
-                {
-                    // Disjoint lifetime merge: inner starts after outer ends.
-                    // Create a gap for the dead period between outer's end and
-                    // inner's begin, then extend extent to cover inner.
-                    GraphExtent trailingGap{extent.end, inner.extent.begin};
-                    gaps.push_back(trailingGap);
-                    gaps.insert(gaps.end(), inner.gaps.begin(), inner.gaps.end());
-                    extent.end = inner.extent.end;
-                }
-                else
-                {
-                    AssertFatal(false,
-                                "merge called but inner doesn't fit in any gap or after lifetime.",
-                                ShowValue(toString()),
-                                ShowValue(inner.toString()));
-                }
+                auto iter = gaps.erase(whichGap);
+                gaps.insert(iter, newGaps.begin(), newGaps.end());
 
                 tags.insert(inner.tags.begin(), inner.tags.end());
             }
@@ -459,18 +419,15 @@ namespace rocRoller
                     if(extent.isWithin(kgraph, gap))
                         return true;
 
-                if(extent.isAfter(kgraph, outer.extent))
-                    return true;
-
                 return false;
             }
 
-            std::map<TagExtent::CategoryKey, std::list<TagExtent>>
-                //std::map<TagExtent::CompatibleKey, std::list<TagExtent>>
+            //std::map<TagExtent::CategoryKey, std::list<TagExtent>>
+            std::map<TagExtent::CompatibleKey, std::list<TagExtent>>
                 getGroupedTagExtents(KernelGraph const& kgraph)
             {
-                std::map<TagExtent::CategoryKey, std::list<TagExtent>> groupedExtents;
-                //std::map<TagExtent::CompatibleKey, std::list<TagExtent>> groupedExtents;
+                //std::map<TagExtent::CategoryKey, std::list<TagExtent>> groupedExtents;
+                std::map<TagExtent::CompatibleKey, std::list<TagExtent>> groupedExtents;
 
                 ControlFlowRWTracer tracer(kgraph);
 
@@ -510,8 +467,8 @@ namespace rocRoller
                     if(!extent.empty() && extent.dataType != DataType::None
                        && extent.layoutType != LayoutType::MATRIX_ACCUMULATOR)
                     {
-                        //groupedExtents[extent.compatibleKey()].push_back(std::move(extent));
-                        groupedExtents[extent.typeKey()].push_back(std::move(extent));
+                        groupedExtents[extent.compatibleKey()].push_back(std::move(extent));
+                        //groupedExtents[extent.typeKey()].push_back(std::move(extent));
                     }
                 }
                 return groupedExtents;

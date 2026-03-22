@@ -248,11 +248,7 @@ namespace rocRoller
         if(ctx)
             comment = fmt::format("Deleting tag {}", tag);
 
-        //AssertFatal(!isBorrowed(tag), "Tag ", tag, " has been borrowed.");
-        if(isBorrowed(tag))
-        {
-            m_borrowedTags.erase(tag);
-        }
+        AssertFatal(!isBorrowed(tag), "Tag ", tag, " has been borrowed.");
 
         m_registers.erase(tag);
         m_expressions.erase(tag);
