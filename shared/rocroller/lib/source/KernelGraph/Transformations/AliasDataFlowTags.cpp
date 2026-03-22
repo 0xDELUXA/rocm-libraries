@@ -93,14 +93,6 @@ namespace rocRoller
                 return std::make_tuple(memoryType, layoutType, dataType, size);
             }
 
-            TagExtent::CompatibleKey TagExtent::compatibleKey() const
-            {
-                int size = 1;
-                for(int s : sizes)
-                    size *= s;
-                return std::make_tuple(memoryType, dataType, size);
-            }
-
             std::string TagExtent::toString() const
             {
                 std::ostringstream msg;
@@ -205,14 +197,8 @@ namespace rocRoller
             {
                 bool found = false;
 
-                //AssertFatal(
-                //    typeKey() == inner.typeKey(), ShowValue(typeKey()), ShowValue(inner.typeKey()));
-                AssertFatal(compatibleKey() == inner.compatibleKey(),
-                            ShowValue(memoryType),
-                            ShowValue(inner.memoryType),
-                            ShowValue(dataType),
-                            ShowValue(inner.dataType));
-
+                AssertFatal(
+                    typeKey() == inner.typeKey(), ShowValue(typeKey()), ShowValue(inner.typeKey()));
                 AssertFatal(dataType != DataType::None, ShowValue(dataType));
 
                 auto itFits
@@ -422,12 +408,10 @@ namespace rocRoller
                 return false;
             }
 
-            //std::map<TagExtent::CategoryKey, std::list<TagExtent>>
-            std::map<TagExtent::CompatibleKey, std::list<TagExtent>>
+            std::map<TagExtent::CategoryKey, std::list<TagExtent>>
                 getGroupedTagExtents(KernelGraph const& kgraph)
             {
-                //std::map<TagExtent::CategoryKey, std::list<TagExtent>> groupedExtents;
-                std::map<TagExtent::CompatibleKey, std::list<TagExtent>> groupedExtents;
+                std::map<TagExtent::CategoryKey, std::list<TagExtent>> groupedExtents;
 
                 ControlFlowRWTracer tracer(kgraph);
 
@@ -467,8 +451,7 @@ namespace rocRoller
                     if(!extent.empty() && extent.dataType != DataType::None
                        && extent.layoutType != LayoutType::MATRIX_ACCUMULATOR)
                     {
-                        groupedExtents[extent.compatibleKey()].push_back(std::move(extent));
-                        //groupedExtents[extent.typeKey()].push_back(std::move(extent));
+                        groupedExtents[extent.typeKey()].push_back(std::move(extent));
                     }
                 }
                 return groupedExtents;
