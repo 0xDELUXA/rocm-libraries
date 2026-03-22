@@ -86,16 +86,11 @@ namespace rocRoller
 
             TagExtent::CategoryKey TagExtent::typeKey() const
             {
-                int totalElements = 1;
+                int size = 1;
                 for(int s : sizes)
-                    totalElements *= s;
-                // Compute physical register count: the number of 32-bit registers
-                // needed for this tile. This is the true resource footprint and
-                // the only quantity that must match for register aliasing.
-                auto const& info = DataTypeInfo::Get(dataType);
-                int         physRegCount
-                    = static_cast<int>((totalElements / info.packing) * info.registerCount);
-                return std::make_tuple(memoryType, layoutType, physRegCount);
+                    size *= s;
+
+                return std::make_tuple(memoryType, layoutType, dataType, size);
             }
 
             std::string TagExtent::toString() const
@@ -205,7 +200,6 @@ namespace rocRoller
                 AssertFatal(
                     typeKey() == inner.typeKey(), ShowValue(typeKey()), ShowValue(inner.typeKey()));
                 AssertFatal(dataType != DataType::None, ShowValue(dataType));
-                AssertFatal(inner.dataType != DataType::None, ShowValue(inner.dataType));
 
                 auto itFits
                     = [&](GraphExtent const& gap) { return inner.extent.isWithin(kgraph, gap); };
