@@ -125,7 +125,7 @@ namespace rocRoller
             /**
              * Finds and returns alias candidates within the extents provided.
              */
-            std::map<int, int> findAliasCandidatesForExtents(KernelGraph const&   kgraph,
+            std::map<int, int> findAliasCandidatesForExtents(KernelGraph&         kgraph,
                                                              std::list<TagExtent> extents);
 
             /**
@@ -133,7 +133,7 @@ namespace rocRoller
              * the registers of `outer` without causing a correctness problem
              * for the kernel.
              */
-            std::map<int, int> findAliasCandidates(KernelGraph const& kgraph);
+            std::map<int, int> findAliasCandidates(KernelGraph& kgraph);
 
             std::optional<std::vector<std::pair<int, int>>> computeNeededSequenceEdges(
                 KernelGraph const& kgraph, GraphExtent const& innerExtent, GraphExtent const& gap);
