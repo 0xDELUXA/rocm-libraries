@@ -65,6 +65,9 @@ namespace rocRoller
             {
                 using CategoryKey = std::tuple<MemoryType, LayoutType, DataType, int>;
 
+                using CompatibleKey = std::tuple<MemoryType, DataType, int>;
+                CompatibleKey compatibleKey() const;
+
                 int              baseTag = -1;
                 std::set<int>    tags;
                 MemoryType       memoryType = MemoryType::None;
@@ -119,7 +122,8 @@ namespace rocRoller
              * Gets all the extents for all the MacroTile tags in `kgraph`,
              * grouped by type & size.
              */
-            std::map<TagExtent::CategoryKey, std::list<TagExtent>>
+            //std::map<TagExtent::CategoryKey, std::list<TagExtent>>
+            std::map<TagExtent::CompatibleKey, std::list<TagExtent>>
                 getGroupedTagExtents(KernelGraph const& kgraph);
 
             /**
