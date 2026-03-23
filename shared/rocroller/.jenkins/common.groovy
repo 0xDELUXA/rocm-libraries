@@ -568,16 +568,32 @@ def runPerformanceCommand (platform, project)
             // Database insertion for develop branch
             def dbInsertCommand = """#!/usr/bin/env bash
                 set -ex
+                echo "=== dbInsertCommand script started (develop) ==="
                 cd ${project.paths.project_build_prefix}/
+
+                ${sshBlock}
+
+                # Ensure gemmaiperf is available
+                if [ ! -d "gemmaiperf" ]; then
+                    echo "=== gemmaiperf not found, cloning ==="
+                    git clone git@github.com:ROCm/gemmaiperf.git
+                    if [ -f gemmaiperf/requirements.txt ]; then
+                        pip install -r gemmaiperf/requirements.txt
+                    else
+                        pip install pandas mysql-connector-python
+                    fi
+                fi
 
                 # Find CSV file
                 CSV_FILE="./performance_${platform.gpu}/${rrperfSuite}.csv"
 
                 if [ -f "\$CSV_FILE" ]; then
+                    echo "=== CSV file found at \$CSV_FILE ==="
                     DB_LABEL="rocroller_perf_ci_develop"
                     COMMIT_SHORT=\$(git rev-parse --short HEAD)
                     MACHINE_NAME=\$(hostname)
 
+                    echo "=== Attempting database insertion with label \$DB_LABEL ==="
                     # Try to insert into database, but don't fail if it doesn't work
                     set +e
                     python gemmaiperf/playground/rocblas-bench_scripts/db_insert.py \\
@@ -600,8 +616,9 @@ def runPerformanceCommand (platform, project)
 
                     # Archive the CSV file
                     cp \$CSV_FILE performance_${platform.gpu}_${rrperfSuite}.csv
+                    echo "=== CSV file archived ==="
                 else
-                    echo "Warning: CSV file not found for database insertion"
+                    echo "Warning: CSV file not found at \$CSV_FILE for database insertion"
                 fi
             """
 
