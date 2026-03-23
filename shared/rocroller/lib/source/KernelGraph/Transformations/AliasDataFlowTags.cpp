@@ -93,6 +93,14 @@ namespace rocRoller
                 return std::make_tuple(memoryType, layoutType, dataType, size);
             }
 
+            TagExtent::CompatibleKey TagExtent::compatibleKey() const
+            {
+                int size = 1;
+                for(int s : sizes)
+                    size *= s;
+                return std::make_tuple(memoryType, dataType, size);
+            }
+
             std::string TagExtent::toString() const
             {
                 std::ostringstream msg;
@@ -197,8 +205,14 @@ namespace rocRoller
             {
                 bool found = false;
 
-                AssertFatal(
-                    typeKey() == inner.typeKey(), ShowValue(typeKey()), ShowValue(inner.typeKey()));
+                //AssertFatal(
+                //    typeKey() == inner.typeKey(), ShowValue(typeKey()), ShowValue(inner.typeKey()));
+                AssertFatal(compatibleKey() == inner.compatibleKey(),
+                            ShowValue(memoryType),
+                            ShowValue(inner.memoryType),
+                            ShowValue(dataType),
+                            ShowValue(inner.dataType));
+
                 AssertFatal(dataType != DataType::None, ShowValue(dataType));
 
                 auto itFits
@@ -408,10 +422,12 @@ namespace rocRoller
                 return false;
             }
 
-            std::map<TagExtent::CategoryKey, std::list<TagExtent>>
+            //std::map<TagExtent::CategoryKey, std::list<TagExtent>>
+            std::map<TagExtent::CompatibleKey, std::list<TagExtent>>
                 getGroupedTagExtents(KernelGraph const& kgraph)
             {
-                std::map<TagExtent::CategoryKey, std::list<TagExtent>> groupedExtents;
+                //std::map<TagExtent::CategoryKey, std::list<TagExtent>> groupedExtents;
+                std::map<TagExtent::CompatibleKey, std::list<TagExtent>> groupedExtents;
 
                 ControlFlowRWTracer tracer(kgraph);
 
@@ -451,142 +467,40 @@ namespace rocRoller
                     if(!extent.empty() && extent.dataType != DataType::None
                        && extent.layoutType != LayoutType::MATRIX_ACCUMULATOR)
                     {
-                        groupedExtents[extent.typeKey()].push_back(std::move(extent));
+                        groupedExtents[extent.compatibleKey()].push_back(std::move(extent));
+                        //groupedExtents[extent.typeKey()].push_back(std::move(extent));
                     }
                 }
                 return groupedExtents;
             }
 
-            std::map<int, int> findAliasCandidatesForExtents(KernelGraph&         kgraph,
+            std::map<int, int> findAliasCandidatesForExtents(KernelGraph const&   kgraph,
                                                              std::list<TagExtent> extents)
             {
-                namespace CG = ControlGraph;
                 std::map<int, int> aliases;
-                // Walk a node up through SetCoordinate Body parents
-                // to its outermost wrapping SetCoordinate -- the node
-                // that is a direct child of the ForLoop body scope.
-                // This mirrors ScheduleMultiplyAndLDS::getImmediateBodyParents.
-                auto scopeLevel = [&](int node) -> int {
-                    auto isSetCoord = [&](int idx) {
-                        return kgraph.control.get<CG::SetCoordinate>(idx).has_value();
-                    };
-                    while(auto parent = kgraph.control.getInputNodeIndices<CG::Body>(node)
-                                            .filter(isSetCoord)
-                                            .only())
-                    {
-                        node = *parent;
-                    }
-                    return node;
-                };
-                // Return the parent scope node (ForLoop, etc.) of a
-                // scope-level node, or std::nullopt if at top level.
-                auto parentScope = [&](int scopeNode) -> std::optional<int> {
-                    return kgraph.control.getInputNodeIndices<CG::Body>(scopeNode).only();
-                };
+
                 bool foundAny = false;
                 do
                 {
+                    auto e   = extents.size();
                     foundAny = false;
                     for(auto outer = extents.begin(); outer != extents.end(); outer++)
                     {
                         for(auto inner = extents.begin(); inner != extents.end();)
                         {
-                            if(outer == inner)
-                            {
-                                inner++;
-                                continue;
-                            }
-                            bool matched = false;
-                            if(inner->fitsWithin(kgraph, *outer))
-                            {
-                                matched = true;
-                            }
-                            else
-                            {
-                                for(auto const& gap : outer->gaps)
-                                {
-                                    auto needed
-                                        = computeNeededSequenceEdges(kgraph, inner->extent, gap);
-                                    if(!needed.has_value() || needed->empty())
-                                        continue;
-                                    // Adjust each raw-node edge to scope-level
-                                    // and validate same-scope membership.
-                                    std::vector<std::pair<int, int>> scopeEdges;
-                                    bool                             valid = true;
-                                    for(auto const& [from, to] : *needed)
-                                    {
-                                        int fromAdj = scopeLevel(from);
-                                        int toAdj   = scopeLevel(to);
-                                        if(fromAdj == toAdj)
-                                        {
-                                            valid = false;
-                                            break;
-                                        }
-                                        auto fromParent = parentScope(fromAdj);
-                                        auto toParent   = parentScope(toAdj);
-                                        if(!fromParent || fromParent != toParent)
-                                        {
-                                            valid = false;
-                                            break;
-                                        }
-                                        scopeEdges.emplace_back(fromAdj, toAdj);
-                                    }
-                                    if(!valid)
-                                        continue;
-                                    // Deduplicate
-                                    std::sort(scopeEdges.begin(), scopeEdges.end());
-                                    scopeEdges.erase(
-                                        std::unique(scopeEdges.begin(), scopeEdges.end()),
-                                        scopeEdges.end());
-                                    // Cycle check: no edge's reverse already ordered
-                                    bool safe = true;
-                                    for(auto const& [fa, ta] : scopeEdges)
-                                    {
-                                        auto rev = kgraph.control.compareNodes(
-                                            rocRoller::UpdateCache, ta, fa);
-                                        if(rev == CG::NodeOrdering::LeftFirst)
-                                        {
-                                            safe = false;
-                                            break;
-                                        }
-                                    }
-                                    // Check for direct mutual conflicts within the set
-                                    for(size_t i = 0; i < scopeEdges.size() && safe; i++)
-                                        for(size_t j = i + 1; j < scopeEdges.size() && safe; j++)
-                                            if(scopeEdges[i].first == scopeEdges[j].second
-                                               && scopeEdges[i].second == scopeEdges[j].first)
-                                                safe = false;
-                                    if(!safe)
-                                        continue;
-                                    // Add scope-level Sequence edges. These are
-                                    // between direct children of the same ForLoop
-                                    // body, so the ControlFlowRWTracer's worklist
-                                    // handles them correctly.
-                                    for(auto const& [fa, ta] : scopeEdges)
-                                    {
-                                        auto existing = kgraph.control.compareNodes(
-                                            rocRoller::UpdateCache, fa, ta);
-                                        if(existing != CG::NodeOrdering::LeftFirst)
-                                        {
-                                            kgraph.control.addElement(CG::Sequence{}, {fa}, {ta});
-                                            Log::debug("ScheduleForAlias: added Sequence {} -> {}",
-                                                       fa,
-                                                       ta);
-                                        }
-                                    }
-                                    matched = true;
-                                    break;
-                                }
-                            }
-                            if(matched)
+                            if(outer != inner && inner->fitsWithin(kgraph, *outer))
                             {
                                 foundAny = true;
                                 AssertFatal(!aliases.contains(inner->baseTag));
                                 aliases[inner->baseTag] = outer->baseTag;
                                 Log::debug("{} -> {}", inner->baseTag, outer->baseTag);
+
                                 inner->validate(kgraph);
+
                                 outer->merge(kgraph, *inner);
+
                                 outer->validate(kgraph);
+
                                 Log::debug("merged {}", outer->toString());
                                 inner = extents.erase(inner);
                             }
@@ -598,65 +512,17 @@ namespace rocRoller
                     }
                     Log::debug("{} aliases so far.", aliases.size());
                 } while(foundAny);
+
                 for(auto ext : extents)
                 {
                     Log::debug("{}\n{}", ext.toString(), ext.orderInfo(kgraph));
                     ext.validate(kgraph);
                 }
+
                 return aliases;
             }
 
-            std::optional<std::vector<std::pair<int, int>>> computeNeededSequenceEdges(
-                KernelGraph const& kgraph, GraphExtent const& innerExtent, GraphExtent const& gap)
-            {
-                namespace CG = ControlGraph;
-                std::vector<std::pair<int, int>> needed;
-                // For inner to fit in gap, we need two conditions:
-                //   1. Every gap.begin node is before every inner.begin node
-                //   2. Every inner.end node is before every gap.end node
-                // (This mirrors GraphExtent::isWithin exactly.)
-                for(int gapBegin : gap.begin)
-                {
-                    for(int inBegin : innerExtent.begin)
-                    {
-                        if(inBegin == gapBegin)
-                            continue;
-                        auto order = kgraph.control.compareNodes(
-                            rocRoller::UpdateCache, gapBegin, inBegin);
-                        if(order == CG::NodeOrdering::LeftFirst)
-                            continue; // Already ordered correctly
-                        if(order == CG::NodeOrdering::Undefined)
-                        {
-                            // Ambiguous: a Sequence edge would resolve this
-                            needed.emplace_back(gapBegin, inBegin);
-                            continue;
-                        }
-                        // RightFirst or body relationship: structurally impossible
-                        return std::nullopt;
-                    }
-                }
-                for(int gapEnd : gap.end)
-                {
-                    for(int inEnd : innerExtent.end)
-                    {
-                        if(inEnd == gapEnd)
-                            continue;
-                        auto order
-                            = kgraph.control.compareNodes(rocRoller::UpdateCache, inEnd, gapEnd);
-                        if(order == CG::NodeOrdering::LeftFirst)
-                            continue;
-                        if(order == CG::NodeOrdering::Undefined)
-                        {
-                            needed.emplace_back(inEnd, gapEnd);
-                            continue;
-                        }
-                        return std::nullopt;
-                    }
-                }
-                return needed;
-            }
-
-            std::map<int, int> findAliasCandidates(KernelGraph& kgraph)
+            std::map<int, int> findAliasCandidates(KernelGraph const& kgraph)
             {
                 // Use a list so we can erase without invalidating any other iterators.
                 auto groupedExtents = getGroupedTagExtents(kgraph);
@@ -693,65 +559,6 @@ namespace rocRoller
                 }
 
                 return aliases;
-            }
-
-            int addSchedulingEdgesForAlias(KernelGraph& kgraph)
-            {
-                namespace CG        = ControlGraph;
-                int  edgesAdded     = 0;
-                auto groupedExtents = getGroupedTagExtents(kgraph);
-                for(auto& [typeKey, extents] : groupedExtents)
-                {
-                    for(auto outer = extents.begin(); outer != extents.end(); ++outer)
-                    {
-                        for(auto inner = extents.begin(); inner != extents.end(); ++inner)
-                        {
-                            if(outer == inner)
-                                continue;
-                            // Skip if inner already fits (no scheduling help needed)
-                            if(inner->fitsWithin(kgraph, *outer))
-                                continue;
-                            for(auto const& gap : outer->gaps)
-                            {
-                                auto needed
-                                    = computeNeededSequenceEdges(kgraph, inner->extent, gap);
-                                if(!needed.has_value() || needed->empty())
-                                    continue;
-                                // Verify none of the needed edges would create a cycle.
-                                // If adding from->to but 'to' is already ordered before
-                                // 'from', that would create a cycle.
-                                bool canAdd = true;
-                                for(auto const& [from, to] : *needed)
-                                {
-                                    auto reverseOrder = kgraph.control.compareNodes(
-                                        rocRoller::UpdateCache, to, from);
-                                    if(reverseOrder == CG::NodeOrdering::LeftFirst)
-                                    {
-                                        canAdd = false;
-                                        break;
-                                    }
-                                }
-                                if(!canAdd)
-                                    continue;
-                                for(auto const& [from, to] : *needed)
-                                {
-                                    // Only add if not already ordered (avoid redundant edges)
-                                    auto existingOrder = kgraph.control.compareNodes(
-                                        rocRoller::UpdateCache, from, to);
-                                    if(existingOrder != CG::NodeOrdering::LeftFirst)
-                                    {
-                                        kgraph.control.addElement(CG::Sequence{}, {from}, {to});
-                                        edgesAdded++;
-                                        Log::debug("ScheduleForAlias: {} -> {}", from, to);
-                                    }
-                                }
-                                // Found a viable gap for this inner; stop checking gaps
-                                break;
-                            }
-                        }
-                    }
-                }
-                return edgesAdded;
             }
 
         }

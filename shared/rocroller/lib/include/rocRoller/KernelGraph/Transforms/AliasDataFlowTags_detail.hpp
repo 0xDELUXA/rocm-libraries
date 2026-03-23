@@ -65,6 +65,9 @@ namespace rocRoller
             {
                 using CategoryKey = std::tuple<MemoryType, LayoutType, DataType, int>;
 
+                using CompatibleKey = std::tuple<MemoryType, DataType, int>;
+                CompatibleKey compatibleKey() const;
+
                 int              baseTag = -1;
                 std::set<int>    tags;
                 MemoryType       memoryType = MemoryType::None;
@@ -119,13 +122,14 @@ namespace rocRoller
              * Gets all the extents for all the MacroTile tags in `kgraph`,
              * grouped by type & size.
              */
-            std::map<TagExtent::CategoryKey, std::list<TagExtent>>
+            //std::map<TagExtent::CategoryKey, std::list<TagExtent>>
+            std::map<TagExtent::CompatibleKey, std::list<TagExtent>>
                 getGroupedTagExtents(KernelGraph const& kgraph);
 
             /**
              * Finds and returns alias candidates within the extents provided.
              */
-            std::map<int, int> findAliasCandidatesForExtents(KernelGraph&         kgraph,
+            std::map<int, int> findAliasCandidatesForExtents(KernelGraph const&   kgraph,
                                                              std::list<TagExtent> extents);
 
             /**
@@ -133,12 +137,7 @@ namespace rocRoller
              * the registers of `outer` without causing a correctness problem
              * for the kernel.
              */
-            std::map<int, int> findAliasCandidates(KernelGraph& kgraph);
-
-            std::optional<std::vector<std::pair<int, int>>> computeNeededSequenceEdges(
-                KernelGraph const& kgraph, GraphExtent const& innerExtent, GraphExtent const& gap);
-
-            int addSchedulingEdgesForAlias(KernelGraph& kgraph);
+            std::map<int, int> findAliasCandidates(KernelGraph const& kgraph);
 
         }
     }
