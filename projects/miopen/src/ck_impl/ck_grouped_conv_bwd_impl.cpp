@@ -102,9 +102,9 @@ bool CheckIsArgSupported(const ProblemDescription& problem,
 }
 
 template <typename DataType>
-size_t GetWorkspaceSize(const ProblemDescription& problem)
+size_t GetWorkspaceSize(const ProblemDescription& problem, bool use_tf32)
 {
-    return GetWorkspaceSizeCommon<DeviceOpGBwdPtrs, CKArgs, DataType>(problem);
+    return GetWorkspaceSizeCommon<DeviceOpGBwdPtrs, CKArgs, DataType>(problem, use_tf32);
 }
 
 } // anonymous namespace
@@ -167,12 +167,13 @@ extern "C" bool ckgrpconv_bwd_is_args_supported(const miopen::conv::ProblemDescr
 }
 
 extern "C" size_t ckgrpconv_bwd_get_workspace_size(const miopen::conv::ProblemDescription* problem,
-                                                   miopenDataType_t data_type)
+                                                   miopenDataType_t data_type,
+                                                   bool use_tf32)
 {
     try
     {
         return DispatchByDataType(data_type, [&](auto type_val) {
-            return GetWorkspaceSize<decltype(type_val)>(*problem);
+            return GetWorkspaceSize<decltype(type_val)>(*problem, use_tf32);
         });
     }
     catch(...)

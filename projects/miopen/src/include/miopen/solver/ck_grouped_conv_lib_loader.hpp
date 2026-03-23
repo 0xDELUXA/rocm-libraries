@@ -89,7 +89,8 @@ public:
 
     MIOPEN_INTERNALS_EXPORT size_t GetWorkspaceSize(CKConvDirection dir,
                                                     const miopen::conv::ProblemDescription& problem,
-                                                    miopenDataType_t dtype) const;
+                                                    miopenDataType_t dtype,
+                                                    bool use_tf32) const;
 
     MIOPEN_INTERNALS_EXPORT ConvSolution
     GetSolution(CKConvDirection dir,
@@ -138,7 +139,8 @@ private:
                                        miopenDataType_t,
                                        bool);
     using GetWorkspaceSizeFn = size_t (*)(const miopen::conv::ProblemDescription*,
-                                          miopenDataType_t);
+                                          miopenDataType_t,
+                                          bool);
     using GetSolutionFn      = ConvSolution* (*)(const ExecutionContext*,
                                             const miopen::conv::ProblemDescription*,
                                             const char*,

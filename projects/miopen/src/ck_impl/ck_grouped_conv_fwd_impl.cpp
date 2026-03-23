@@ -251,7 +251,8 @@ extern "C" bool ckgrpconv_fwd_is_args_supported(const miopen::conv::ProblemDescr
 
 extern "C" size_t
 ckgrpconv_fwd_get_workspace_size(const miopen::conv::ProblemDescription* /*problem*/,
-                                 miopenDataType_t /*data_type*/)
+                                 miopenDataType_t /*data_type*/,
+                                 bool /*use_tf32*/)
 {
     // FWD grouped convolution CK kernels do not use split-k and never
     // require CK-level workspace.  Layout transform workspace (NCHW to NHWC)

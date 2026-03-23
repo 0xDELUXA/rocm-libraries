@@ -28,20 +28,15 @@ function(ck_impl_base_arch ARCH OUT_VAR)
     set(${OUT_VAR} "${_base}" PARENT_SCOPE)
 endfunction()
 
-# Sanitize arch for matching unbundle target names (ck_conv_<arch_safe>)
-# created by the top-level CMakeLists.txt.
-function(ck_impl_sanitize_arch ARCH OUT_VAR)
-    string(REPLACE ":" "_" _r "${ARCH}")
-    string(REPLACE "+" "p" _r "${_r}")
-    string(REPLACE "-" "_" _r "${_r}")
-    set(${OUT_VAR} "${_r}" PARENT_SCOPE)
-endfunction()
-
 foreach(gpu_target IN LISTS GPU_TARGETS)
     ck_impl_base_arch("${gpu_target}" arch_base)
-    ck_impl_sanitize_arch("${gpu_target}" arch_safe)
+    miopen_sanitize_arch("${gpu_target}" arch_safe)
 
     set(lib_name "MIOpenCKGroupedConv_${arch_base}")
+
+    if(TARGET ${lib_name})
+        continue()
+    endif()
 
     add_library(${lib_name} SHARED ${CK_IMPL_SOURCES})
 

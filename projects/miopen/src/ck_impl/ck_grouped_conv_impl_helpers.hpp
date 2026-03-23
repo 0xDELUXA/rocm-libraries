@@ -209,10 +209,21 @@ bool CheckIsArgSupportedCommon(const miopen::conv::ProblemDescription& problem,
 }
 
 template <template <typename, typename> class DeviceOpPtrs, typename CKArgsType, typename DataType>
-std::size_t GetWorkspaceSizeCommon(const miopen::conv::ProblemDescription& problem)
+std::size_t GetWorkspaceSizeCommon(const miopen::conv::ProblemDescription& problem, bool use_tf32)
 {
-    return miopen::solver::GetCKSplitkMaxWorkspaceSize<DeviceOpPtrs<DataType, DataType>,
-                                                       CKArgsType>(problem);
+    std::size_t ws = miopen::solver::GetCKSplitkMaxWorkspaceSize<DeviceOpPtrs<DataType, DataType>,
+                                                                  CKArgsType>(problem);
+    if constexpr(std::is_same_v<DataType, float>)
+    {
+        if(use_tf32)
+        {
+            ws = std::max(
+                ws,
+                miopen::solver::GetCKSplitkMaxWorkspaceSize<DeviceOpPtrs<DataType, ck::tf32_t>,
+                                                             CKArgsType>(problem));
+        }
+    }
+    return ws;
 }
 
 // ---------------------------------------------------------------------------

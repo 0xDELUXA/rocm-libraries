@@ -4626,8 +4626,8 @@ private:
 struct PerformanceConfigHipImplicitGemmGroupBwdXdlops
     : PerfConfigBaseCK<PerformanceConfigHipImplicitGemmGroupBwdXdlops>
 {
-    int index;
-    int split_k;
+    int index   = 0;
+    int split_k = 1;
     std::string kernel_id;
     std::vector<std::string> valid_kernels;
     PerformanceConfigHipImplicitGemmGroupBwdXdlops(int idx, std::string kernl_id)
@@ -4716,8 +4716,8 @@ private:
 struct PerformanceConfigHipImplicitGemmGroupWrwXdlops
     : PerfConfigBaseCK<PerformanceConfigHipImplicitGemmGroupWrwXdlops>
 {
-    int index;
-    int split_k;
+    int index   = 0;
+    int split_k = 1;
     std::string kernel_id;
     std::vector<std::string> valid_kernels;
     PerformanceConfigHipImplicitGemmGroupWrwXdlops(int idx, std::string kernl_id)

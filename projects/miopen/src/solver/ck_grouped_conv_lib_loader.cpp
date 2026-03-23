@@ -295,11 +295,12 @@ bool CKGroupedConvLibLoader::IsArgsSupported(CKConvDirection dir,
 
 size_t CKGroupedConvLibLoader::GetWorkspaceSize(CKConvDirection dir,
                                                 const conv::ProblemDescription& problem,
-                                                miopenDataType_t dtype) const
+                                                miopenDataType_t dtype,
+                                                bool use_tf32) const
 {
     if(!IsLoaded())
         return 0;
-    return dir_fns_[static_cast<int>(dir)].get_workspace_size(&problem, dtype);
+    return dir_fns_[static_cast<int>(dir)].get_workspace_size(&problem, dtype, use_tf32);
 }
 
 ConvSolution CKGroupedConvLibLoader::GetSolution(CKConvDirection dir,

@@ -163,10 +163,10 @@ bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::RunParameterPredictionModel
     valid_kernels =
         loader.FillValidKernelsWithTf32Fallback(CKConvDirection::Fwd, problem, data_type, try_tf32);
 
-    static const std::string& arch = ctx.GetStream().GetDeviceName();
+    const auto arch = ctx.GetStream().GetDeviceName();
     if(arch == "gfx90a")
         InitHeuristicKernelIDs("DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle");
-    static const std::string solver = "ConvHipIgemmGroupFwdXdlops";
+    const std::string solver = "ConvHipIgemmGroupFwdXdlops";
     std::vector<float> features = GetFeatures(problem, ctx.GetStream().GetMaxComputeUnits(), arch);
     bool transform              = (arch == "gfx90a") ? false : true;
     if(ai::tuning::ModelSetParams(arch,

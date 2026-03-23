@@ -74,7 +74,8 @@ bool ckgrpconv_fwd_is_args_supported(const miopen::conv::ProblemDescription* pro
                                      bool use_tf32);
 
 size_t ckgrpconv_fwd_get_workspace_size(const miopen::conv::ProblemDescription* problem,
-                                        miopenDataType_t data_type);
+                                        miopenDataType_t data_type,
+                                        bool use_tf32);
 
 miopen::solver::ConvSolution*
 ckgrpconv_fwd_get_solution(const miopen::ExecutionContext* ctx,
@@ -97,7 +98,8 @@ bool ckgrpconv_bwd_is_args_supported(const miopen::conv::ProblemDescription* pro
                                      bool use_tf32);
 
 size_t ckgrpconv_bwd_get_workspace_size(const miopen::conv::ProblemDescription* problem,
-                                        miopenDataType_t data_type);
+                                        miopenDataType_t data_type,
+                                        bool use_tf32);
 
 miopen::solver::ConvSolution*
 ckgrpconv_bwd_get_solution(const miopen::ExecutionContext* ctx,
@@ -120,7 +122,8 @@ bool ckgrpconv_wrw_is_args_supported(const miopen::conv::ProblemDescription* pro
                                      bool use_tf32);
 
 size_t ckgrpconv_wrw_get_workspace_size(const miopen::conv::ProblemDescription* problem,
-                                        miopenDataType_t data_type);
+                                        miopenDataType_t data_type,
+                                        bool use_tf32);
 
 miopen::solver::ConvSolution*
 ckgrpconv_wrw_get_solution(const miopen::ExecutionContext* ctx,

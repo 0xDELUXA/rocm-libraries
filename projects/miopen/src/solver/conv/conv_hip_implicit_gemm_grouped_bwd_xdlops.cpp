@@ -169,8 +169,8 @@ bool PerformanceConfigHipImplicitGemmGroupBwdXdlops::RunParameterPredictionModel
         return false;
 
     InitHeuristicKernelIDs();
-    static const std::string& arch = ctx.GetStream().GetDeviceName();
-    static std::string solver      = "ConvHipIgemmGroupBwdXdlops";
+    const auto arch      = ctx.GetStream().GetDeviceName();
+    std::string solver   = "ConvHipIgemmGroupBwdXdlops";
     if(arch == "gfx90a")
         solver = "ConvHipIgemmGroupXdlops";
     std::vector<float> features = GetFeatures(problem, ctx.GetStream().GetMaxComputeUnits(), arch);
@@ -436,7 +436,9 @@ ConvHipImplicitGemmGroupBwdXdlops::GetCKMaxWorkspaceSize(const ProblemDescriptio
     if(!loader.IsLoaded())
         return 0;
 
-    return loader.GetWorkspaceSize(CKConvDirection::Bwd, problem, problem.GetInDataType());
+    auto data_type = problem.GetInDataType();
+    bool use_tf32  = (data_type == miopenFloat) && problem.UseTF32();
+    return loader.GetWorkspaceSize(CKConvDirection::Bwd, problem, data_type, use_tf32);
 }
 
 size_t ConvHipImplicitGemmGroupBwdXdlops::GetWorkspaceSize(const ExecutionContext&,

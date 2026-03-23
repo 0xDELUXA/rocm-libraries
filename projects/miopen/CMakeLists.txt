@@ -373,7 +373,6 @@ if( MIOPEN_BACKEND STREQUAL "HIP" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN_B
 
         set(CK_PER_ARCH_DIR "${CMAKE_CURRENT_BINARY_DIR}/lib")
 
-        set(MIOPEN_CK_PER_ARCH_TARGETS)
         foreach(arch IN LISTS GPU_TARGETS)
             miopen_sanitize_arch("${arch}" arch_safe)
             set(per_arch_lib "${CK_PER_ARCH_DIR}/libdevice_conv_operations_${arch_safe}.a")
@@ -399,7 +398,6 @@ if( MIOPEN_BACKEND STREQUAL "HIP" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN_B
             set_target_properties(${target_name} PROPERTIES IMPORTED_LOCATION "${per_arch_lib}")
             add_dependencies(${target_name} ${target_name}_unbundle)
 
-            list(APPEND MIOPEN_CK_PER_ARCH_TARGETS "${target_name}")
         endforeach()
     endif() # MIOPEN_CK_UNBUNDLE_PER_ARCH
 
