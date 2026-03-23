@@ -256,6 +256,21 @@ CKGroupedConvLibLoader::fill_valid_kernels(CKConvDirection dir,
         dir_fns_[static_cast<int>(dir)].fill_valid_kernels(&problem, dtype, use_tf32));
 }
 
+std::vector<std::string> CKGroupedConvLibLoader::fill_valid_kernels_with_tf32_fallback(
+    CKConvDirection dir,
+    const conv::ProblemDescription& problem,
+    miopenDataType_t dtype,
+    bool& use_tf32) const
+{
+    auto result = fill_valid_kernels(dir, problem, dtype, use_tf32);
+    if(result.empty() && use_tf32)
+    {
+        use_tf32 = false;
+        result   = fill_valid_kernels(dir, problem, dtype, false);
+    }
+    return result;
+}
+
 bool CKGroupedConvLibLoader::is_applicable(CKConvDirection dir,
                                            const conv::ProblemDescription& problem,
                                            miopenDataType_t dtype,

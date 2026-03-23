@@ -4,10 +4,9 @@
 #include <vector>
 #include <string>
 #include <memory>
-#include <algorithm>
-#include <cassert>
 
 #include "ck_grouped_conv_common.hpp"
+#include "ck_grouped_conv_impl_helpers.hpp"
 #include <miopen/conv_solution.hpp>
 #include <miopen/solver/ck_grouped_conv_interface.hpp>
 #include <miopen/solver/ck_utility_common.hpp>
@@ -18,84 +17,20 @@
 
 using miopen::conv::ProblemDescription;
 using miopen::solver::ConvSolution;
-using miopen::solver::FillValidKernelsIDs;
-using miopen::solver::GetCKSplitkMaxWorkspaceSize;
 using miopen::solver::InitInvokerFactoryBwdNCHW;
 using miopen::solver::InitInvokerFactoryNHWC;
-using miopen::solver::IsCKApplicable;
-using miopen::solver::IsCKArgsSupported;
 using miopen::solver::MakeSolutionGroupConvImplicitGemmXdlops;
-using miopen::solver::ProblemInterpreter;
 
 using miopen::solver::conv::DeviceOpGBwdPtrs;
 
 namespace {
 
-// CKArgs — extracts convolution dimensions for CK argument construction.
-//
-// Each direction (fwd, bwd, wrw) has its own CKArgs with the same dimension
-// members but direction-specific MakeArgPtr tensor ordering and IsSupportedBy
-// logic.  BWD and WRW additionally handle NHWC layout strides and split-k
-// workspace queries.  See ck_grouped_conv_fwd_impl.cpp for the FWD variant.
-struct CKArgs
+// CKArgs — BWD direction.
+// Inherits shared members and split-k methods from CKArgsSplitK.
+// Provides only the direction-specific MakeArgPtr overloads.
+struct CKArgs : CKArgsSplitK<CKArgs>
 {
-    CKArgs(const ProblemDescription& problem)
-    {
-        auto d          = ExtractConvDims(problem);
-        G               = d.G;
-        N               = d.N;
-        K1              = d.K1;
-        C1              = d.C1;
-        C               = d.C;
-        K               = d.K;
-        Hi              = d.Hi;
-        Wi              = d.Wi;
-        Ho              = d.Ho;
-        Wo              = d.Wo;
-        Y               = d.Y;
-        X               = d.X;
-        data_type       = ProblemInterpreter::GetOutputDataType(problem);
-        alpha_beta_case = ProblemInterpreter::GetAlphaBetaCase(problem);
-
-        input  = {G, N, C, Hi, Wi};
-        output = {G, N, K, Ho, Wo};
-        weight = {G, K, C, Y, X};
-
-        if(problem.IsLayoutNHWC())
-        {
-            auto copy_strides = [](const auto& src, auto& dst) {
-                assert(dst.size() == (src.size() + 1));
-                std::copy(src.begin(), src.end(), dst.begin() + 1);
-            };
-            copy_strides(problem.GetIn().GetStrides(), in_strides);
-            copy_strides(problem.GetOut().GetStrides(), out_strides);
-            copy_strides(problem.GetWeights().GetStrides(), wei_strides);
-
-            // On a backward pass, problem.GetIn() means y(or out),
-            // and problem.GetOut means x(or in)
-            std::swap(in_strides, out_strides);
-
-            in_strides[0]  = C;
-            out_strides[0] = K;
-            wei_strides[0] = K * wei_strides[1];
-        }
-        else
-        {
-            assert(problem.IsLayoutDefault());
-            in_strides  = {C, Hi * Wi * G * C, 1, Wi * G * C, G * C};
-            out_strides = {K, Ho * Wo * G * K, 1, Wo * G * K, G * K};
-            wei_strides = {K * Y * X * C, Y * X * C, 1, X * C, C};
-        }
-
-        strides  = {ProblemInterpreter::GetAdjustedConvolutionStrideH(problem),
-                    ProblemInterpreter::GetAdjustedConvolutionStrideW(problem)};
-        dilation = {ProblemInterpreter::GetAdjustedConvolutionDilationH(problem),
-                    ProblemInterpreter::GetAdjustedConvolutionDilationW(problem)};
-        lPadding = {ProblemInterpreter::GetInputLeftPadH(problem),
-                    ProblemInterpreter::GetInputLeftPadW(problem)};
-        rPadding = {ProblemInterpreter::GetAdjustedInputRightPadH(problem),
-                    ProblemInterpreter::GetAdjustedInputRightPadW(problem)};
-    }
+    CKArgs(const ProblemDescription& problem) : CKArgsSplitK<CKArgs>(problem) {}
 
     CKArgs(const CKArgs&)            = default;
     CKArgs(CKArgs&&)                 = default;
@@ -143,82 +78,18 @@ struct CKArgs
     {
         return MakeArgPtr(conv_ptr, tensors.out, tensors.w, tensors.in, alpha, beta, split_k);
     }
-
-    template <typename ConvPtr>
-    bool IsSupportedBy(const ConvPtr& conv_ptr) const
-    {
-        auto arg_ptr        = MakeArgPtr(conv_ptr, nullptr, nullptr, nullptr, 1.0f, 0.0f, 1);
-        auto workspace_size = conv_ptr->GetWorkSpaceSize(arg_ptr.get());
-        if(workspace_size != 0)
-            conv_ptr->SetWorkSpacePointer(arg_ptr.get(), &workspace_size);
-        return conv_ptr->IsSupportedArgument(arg_ptr.get());
-    }
-
-    template <typename ConvPtr>
-    bool IsSupportedBySplitK(const ConvPtr& conv_ptr, int split_k) const
-    {
-        auto arg_ptr        = MakeArgPtr(conv_ptr, nullptr, nullptr, nullptr, 1.0f, 0.0f, split_k);
-        auto workspace_size = conv_ptr->GetWorkSpaceSize(arg_ptr.get());
-        if(workspace_size != 0)
-            conv_ptr->SetWorkSpacePointer(arg_ptr.get(), &workspace_size);
-        return conv_ptr->IsSupportedArgument(arg_ptr.get());
-    }
-
-    template <typename ConvPtr>
-    std::size_t GetCKSplitkWorkspaceSize(const ConvPtr& conv_ptr, int split_k) const
-    {
-        auto arg_ptr = MakeArgPtr(conv_ptr, nullptr, nullptr, nullptr, 1.0f, 0.0f, split_k);
-        return conv_ptr->GetWorkSpaceSize(arg_ptr.get());
-    }
-
-    int G;
-    int N;
-    int K;
-    int C;
-    int C1;
-    int K1;
-    int Hi;
-    int Wi;
-    int Ho;
-    int Wo;
-    int Y;
-    int X;
-    miopenDataType_t data_type;
-    miopenAlphaBetaCase_t alpha_beta_case;
-    std::array<ck::index_t, 5> input;
-    std::array<ck::index_t, 5> in_strides;
-    std::array<ck::index_t, 5> output;
-    std::array<ck::index_t, 5> out_strides;
-    std::array<ck::index_t, 5> weight;
-    std::array<ck::index_t, 5> wei_strides;
-    std::array<ck::index_t, 2> strides;
-    std::array<ck::index_t, 2> dilation;
-    std::array<ck::index_t, 2> lPadding;
-    std::array<ck::index_t, 2> rPadding;
 };
 
 template <typename DataType>
 bool CheckCKApplicability(const ProblemDescription& problem, bool use_tf32)
 {
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        if(use_tf32 && IsCKApplicable<DeviceOpGBwdPtrs<DataType, ck::tf32_t>, CKArgs>(problem))
-            return true;
-    }
-    return IsCKApplicable<DeviceOpGBwdPtrs<DataType>, CKArgs>(problem);
+    return CheckCKApplicabilityCommon<DeviceOpGBwdPtrs, CKArgs, DataType>(problem, use_tf32);
 }
 
 template <typename DataType>
 std::vector<std::string> FillValidKernels(const ProblemDescription& problem, bool use_tf32)
 {
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        if(use_tf32)
-        {
-            return FillValidKernelsIDs<DeviceOpGBwdPtrs<DataType, ck::tf32_t>, CKArgs>(problem);
-        }
-    }
-    return FillValidKernelsIDs<DeviceOpGBwdPtrs<DataType>, CKArgs>(problem);
+    return FillValidKernelsCommon<DeviceOpGBwdPtrs, CKArgs, DataType>(problem, use_tf32);
 }
 
 template <typename DataType>
@@ -226,21 +97,14 @@ bool CheckIsArgSupported(const ProblemDescription& problem,
                          const std::string& kernel_id,
                          bool use_tf32)
 {
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        if(use_tf32 &&
-           IsCKArgsSupported<DeviceOpGBwdPtrs<DataType, ck::tf32_t>, CKArgs>(problem, kernel_id))
-        {
-            return true;
-        }
-    }
-    return IsCKArgsSupported<DeviceOpGBwdPtrs<DataType>, CKArgs>(problem, kernel_id);
+    return CheckIsArgSupportedCommon<DeviceOpGBwdPtrs, CKArgs, DataType>(
+        problem, kernel_id, use_tf32);
 }
 
 template <typename DataType>
 size_t GetWorkspaceSize(const ProblemDescription& problem)
 {
-    return GetCKSplitkMaxWorkspaceSize<DeviceOpGBwdPtrs<DataType>, CKArgs>(problem);
+    return GetWorkspaceSizeCommon<DeviceOpGBwdPtrs, CKArgs, DataType>(problem);
 }
 
 } // anonymous namespace
@@ -254,17 +118,10 @@ extern "C" CKKernelListHandle* ckgrpconv_bwd_fill_valid_kernels(
 {
     try
     {
-        auto result = std::make_unique<CKKernelListHandle>();
-        switch(data_type)
-        {
-        case miopenHalf: result->kernels = FillValidKernels<ck::half_t>(*problem, use_tf32); break;
-        case miopenFloat: result->kernels = FillValidKernels<float>(*problem, use_tf32); break;
-        case miopenBFloat16:
-            result->kernels = FillValidKernels<ck::bhalf_t>(*problem, use_tf32);
-            break;
-        case miopenInt8: result->kernels = FillValidKernels<int8_t>(*problem, use_tf32); break;
-        default: return nullptr;
-        }
+        auto result     = std::make_unique<CKKernelListHandle>();
+        result->kernels = DispatchByDataType(data_type, [&](auto type_val) {
+            return FillValidKernels<decltype(type_val)>(*problem, use_tf32);
+        });
         return result.release();
     }
     catch(...)
@@ -279,14 +136,9 @@ extern "C" bool ckgrpconv_bwd_is_applicable(const miopen::conv::ProblemDescripti
 {
     try
     {
-        switch(data_type)
-        {
-        case miopenHalf: return CheckCKApplicability<ck::half_t>(*problem, use_tf32);
-        case miopenFloat: return CheckCKApplicability<float>(*problem, use_tf32);
-        case miopenInt8: return CheckCKApplicability<int8_t>(*problem, use_tf32);
-        case miopenBFloat16: return CheckCKApplicability<ck::bhalf_t>(*problem, use_tf32);
-        default: return false;
-        }
+        return DispatchByDataType(data_type, [&](auto type_val) {
+            return CheckCKApplicability<decltype(type_val)>(*problem, use_tf32);
+        });
     }
     catch(...)
     {
@@ -304,14 +156,9 @@ extern "C" bool ckgrpconv_bwd_is_args_supported(const miopen::conv::ProblemDescr
         if(!kernel_id)
             return false;
         std::string kid(kernel_id);
-        switch(data_type)
-        {
-        case miopenHalf: return CheckIsArgSupported<ck::half_t>(*problem, kid, use_tf32);
-        case miopenFloat: return CheckIsArgSupported<float>(*problem, kid, use_tf32);
-        case miopenInt8: return CheckIsArgSupported<int8_t>(*problem, kid, use_tf32);
-        case miopenBFloat16: return CheckIsArgSupported<ck::bhalf_t>(*problem, kid, use_tf32);
-        default: return false;
-        }
+        return DispatchByDataType(data_type, [&](auto type_val) {
+            return CheckIsArgSupported<decltype(type_val)>(*problem, kid, use_tf32);
+        });
     }
     catch(...)
     {
@@ -324,14 +171,9 @@ extern "C" size_t ckgrpconv_bwd_get_workspace_size(const miopen::conv::ProblemDe
 {
     try
     {
-        switch(data_type)
-        {
-        case miopenHalf: return GetWorkspaceSize<ck::half_t>(*problem);
-        case miopenFloat: return GetWorkspaceSize<float>(*problem);
-        case miopenInt8: return GetWorkspaceSize<int8_t>(*problem);
-        case miopenBFloat16: return GetWorkspaceSize<ck::bhalf_t>(*problem);
-        default: return 0;
-        }
+        return DispatchByDataType(data_type, [&](auto type_val) {
+            return GetWorkspaceSize<decltype(type_val)>(*problem);
+        });
     }
     catch(...)
     {

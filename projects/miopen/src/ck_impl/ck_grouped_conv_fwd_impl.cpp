@@ -7,6 +7,7 @@
 #include <memory>
 
 #include "ck_grouped_conv_common.hpp"
+#include "ck_grouped_conv_impl_helpers.hpp"
 #include <miopen/conv_solution.hpp>
 #include <miopen/solver/ck_grouped_conv_interface.hpp>
 #include <miopen/conv/problem_description.hpp>
@@ -167,29 +168,13 @@ struct CKArgs
 template <typename DataType>
 bool CheckCKApplicability(const ProblemDescription& problem, bool use_tf32)
 {
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        if(use_tf32 &&
-           miopen::solver::IsCKApplicable<DeviceOpGFwdPtrs<DataType, ck::tf32_t>, CKArgs>(problem))
-        {
-            return true;
-        }
-    }
-    return miopen::solver::IsCKApplicable<DeviceOpGFwdPtrs<DataType>, CKArgs>(problem);
+    return CheckCKApplicabilityCommon<DeviceOpGFwdPtrs, CKArgs, DataType>(problem, use_tf32);
 }
 
 template <typename DataType>
 std::vector<std::string> FillValidKernels(const ProblemDescription& problem, bool use_tf32)
 {
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        if(use_tf32)
-        {
-            return miopen::solver::FillValidKernelsIDs<DeviceOpGFwdPtrs<DataType, ck::tf32_t>,
-                                                       CKArgs>(problem);
-        }
-    }
-    return miopen::solver::FillValidKernelsIDs<DeviceOpGFwdPtrs<DataType>, CKArgs>(problem);
+    return FillValidKernelsCommon<DeviceOpGFwdPtrs, CKArgs, DataType>(problem, use_tf32);
 }
 
 template <typename DataType>
@@ -197,17 +182,8 @@ bool CheckIsArgSupported(const ProblemDescription& problem,
                          const std::string& kernel_id,
                          bool use_tf32)
 {
-    if constexpr(std::is_same_v<DataType, float>)
-    {
-        if(use_tf32 &&
-           miopen::solver::IsCKArgsSupported<DeviceOpGFwdPtrs<DataType, ck::tf32_t>, CKArgs>(
-               problem, kernel_id))
-        {
-            return true;
-        }
-    }
-    return miopen::solver::IsCKArgsSupported<DeviceOpGFwdPtrs<DataType>, CKArgs>(problem,
-                                                                                 kernel_id);
+    return CheckIsArgSupportedCommon<DeviceOpGFwdPtrs, CKArgs, DataType>(
+        problem, kernel_id, use_tf32);
 }
 
 } // anonymous namespace
@@ -225,17 +201,10 @@ extern "C" CKKernelListHandle* ckgrpconv_fwd_fill_valid_kernels(
 {
     try
     {
-        auto result = std::make_unique<CKKernelListHandle>();
-        switch(data_type)
-        {
-        case miopenHalf: result->kernels = FillValidKernels<ck::half_t>(*problem, use_tf32); break;
-        case miopenFloat: result->kernels = FillValidKernels<float>(*problem, use_tf32); break;
-        case miopenBFloat16:
-            result->kernels = FillValidKernels<ck::bhalf_t>(*problem, use_tf32);
-            break;
-        case miopenInt8: result->kernels = FillValidKernels<int8_t>(*problem, use_tf32); break;
-        default: return nullptr;
-        }
+        auto result     = std::make_unique<CKKernelListHandle>();
+        result->kernels = DispatchByDataType(data_type, [&](auto type_val) {
+            return FillValidKernels<decltype(type_val)>(*problem, use_tf32);
+        });
         return result.release();
     }
     catch(...)
@@ -250,14 +219,9 @@ extern "C" bool ckgrpconv_fwd_is_applicable(const miopen::conv::ProblemDescripti
 {
     try
     {
-        switch(data_type)
-        {
-        case miopenHalf: return CheckCKApplicability<ck::half_t>(*problem, use_tf32);
-        case miopenFloat: return CheckCKApplicability<float>(*problem, use_tf32);
-        case miopenBFloat16: return CheckCKApplicability<ck::bhalf_t>(*problem, use_tf32);
-        case miopenInt8: return CheckCKApplicability<int8_t>(*problem, use_tf32);
-        default: return false;
-        }
+        return DispatchByDataType(data_type, [&](auto type_val) {
+            return CheckCKApplicability<decltype(type_val)>(*problem, use_tf32);
+        });
     }
     catch(...)
     {
@@ -275,14 +239,9 @@ extern "C" bool ckgrpconv_fwd_is_args_supported(const miopen::conv::ProblemDescr
         if(!kernel_id)
             return false;
         std::string kid(kernel_id);
-        switch(data_type)
-        {
-        case miopenHalf: return CheckIsArgSupported<ck::half_t>(*problem, kid, use_tf32);
-        case miopenFloat: return CheckIsArgSupported<float>(*problem, kid, use_tf32);
-        case miopenBFloat16: return CheckIsArgSupported<ck::bhalf_t>(*problem, kid, use_tf32);
-        case miopenInt8: return CheckIsArgSupported<int8_t>(*problem, kid, use_tf32);
-        default: return false;
-        }
+        return DispatchByDataType(data_type, [&](auto type_val) {
+            return CheckIsArgSupported<decltype(type_val)>(*problem, kid, use_tf32);
+        });
     }
     catch(...)
     {

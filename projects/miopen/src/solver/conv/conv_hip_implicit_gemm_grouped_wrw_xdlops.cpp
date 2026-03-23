@@ -49,24 +49,6 @@ namespace conv {
 using ProblemDescription = miopen::conv::ProblemDescription;
 
 #if MIOPEN_ENABLE_AI_KERNEL_TUNING
-static std::vector<std::string> GetKernelAsTokens(const std::string& kernel)
-{
-    std::vector<std::string> tokens;
-    std::string token;
-    std::istringstream tokenStream(
-        kernel.substr(kernel.find('<') + 1, kernel.find('>') - kernel.find('<') - 1));
-    while(std::getline(tokenStream, token, ','))
-    {
-        token.erase(remove_if(token.begin(), token.end(), isspace),
-                    token.end()); // strip whitespace
-        tokens.push_back(token);
-    }
-    return tokens;
-}
-
-/**
- * @param type is the kernel type predicted by the parameter prediction model
- */
 void PerformanceConfigHipImplicitGemmGroupWrwXdlops::InitHeuristicKernelIDs(const std::string& type)
 {
     for(int i = 0; i < valid_kernels.size(); i++)
@@ -206,12 +188,8 @@ bool PerformanceConfigHipImplicitGemmGroupWrwXdlops::RunParameterPredictionModel
     auto data_type = problem.GetInDataType();
     use_tf32       = (data_type == miopenFloat && problem.UseTF32());
 
-    valid_kernels = loader.fill_valid_kernels(CKConvDirection::Wrw, problem, data_type, use_tf32);
-    if(valid_kernels.empty() && use_tf32)
-    {
-        use_tf32      = false;
-        valid_kernels = loader.fill_valid_kernels(CKConvDirection::Wrw, problem, data_type, false);
-    }
+    valid_kernels = loader.fill_valid_kernels_with_tf32_fallback(
+        CKConvDirection::Wrw, problem, data_type, use_tf32);
     if(valid_kernels.empty())
         return false;
 
@@ -366,12 +344,8 @@ void PerformanceConfigHipImplicitGemmGroupWrwXdlops::HeuristicInit(
     auto data_type = problem.GetInDataType();
     use_tf32       = (data_type == miopenFloat && problem.UseTF32());
 
-    valid_kernels = loader.fill_valid_kernels(CKConvDirection::Wrw, problem, data_type, use_tf32);
-    if(valid_kernels.empty() && use_tf32)
-    {
-        use_tf32      = false;
-        valid_kernels = loader.fill_valid_kernels(CKConvDirection::Wrw, problem, data_type, false);
-    }
+    valid_kernels = loader.fill_valid_kernels_with_tf32_fallback(
+        CKConvDirection::Wrw, problem, data_type, use_tf32);
 
     if(!valid_kernels.empty())
     {
@@ -398,14 +372,8 @@ bool PerformanceConfigHipImplicitGemmGroupWrwXdlops::SetNextValue(const ProblemD
         auto data_type = problem.GetInDataType();
         use_tf32       = (data_type == miopenFloat && problem.UseTF32());
 
-        valid_kernels =
-            loader.fill_valid_kernels(CKConvDirection::Wrw, problem, data_type, use_tf32);
-        if(valid_kernels.empty() && use_tf32)
-        {
-            use_tf32 = false;
-            valid_kernels =
-                loader.fill_valid_kernels(CKConvDirection::Wrw, problem, data_type, false);
-        }
+        valid_kernels = loader.fill_valid_kernels_with_tf32_fallback(
+            CKConvDirection::Wrw, problem, data_type, use_tf32);
 
         assert(!valid_kernels.empty());
         return true;
@@ -456,29 +424,8 @@ bool PerformanceConfigHipImplicitGemmGroupWrwXdlops::IsValidValue() const
 bool PerformanceConfigHipImplicitGemmGroupWrwXdlops::IsValid(
     [[maybe_unused]] const ProblemDescription& problem) const
 {
-    // Database validation: Reject configurations with split_k > 1 in deterministic mode.
-    if(problem.GetConv().attribute.deterministic)
-    {
-        size_t plus_pos = kernel_id.find_last_of('+');
-        if(plus_pos != std::string::npos)
-        {
-            try
-            {
-                int split_k_from_id = std::stoi(kernel_id.substr(plus_pos + 1));
-                if(split_k_from_id != 1)
-                {
-                    MIOPEN_LOG_I("Invalid configuration for deterministic mode: split_k="
-                                 << split_k_from_id << " (must be 1)");
-                    return false;
-                }
-            }
-            catch(const std::exception&)
-            {
-                MIOPEN_LOG_E("Failed to parse split_k from kernel_id: " << kernel_id);
-                return false;
-            }
-        }
-    }
+    if(!IsDeterministicSplitKValid(kernel_id, problem.GetConv().attribute.deterministic))
+        return false;
 
     const auto& loader = CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
     if(!loader.IsLoaded())

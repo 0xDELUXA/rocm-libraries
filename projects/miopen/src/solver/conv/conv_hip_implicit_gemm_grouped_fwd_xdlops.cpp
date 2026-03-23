@@ -47,21 +47,6 @@ namespace conv {
 using ProblemDescription = miopen::conv::ProblemDescription;
 
 #if MIOPEN_ENABLE_AI_KERNEL_TUNING
-static std::vector<std::string> GetKernelAsTokens(const std::string& kernel)
-{
-    std::vector<std::string> tokens;
-    std::string token;
-    std::istringstream tokenStream(
-        kernel.substr(kernel.find('<') + 1, kernel.find('>') - kernel.find('<') - 1));
-    while(std::getline(tokenStream, token, ','))
-    {
-        token.erase(remove_if(token.begin(), token.end(), isspace),
-                    token.end()); // strip whitespace
-        tokens.push_back(token);
-    }
-    return tokens;
-}
-
 void PerformanceConfigHipImplicitGemmGroupFwdXdlops::InitHeuristicKernelIDs(const std::string& type)
 {
     for(int i = 0; i < valid_kernels.size(); i++)
@@ -175,14 +160,8 @@ bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::RunParameterPredictionModel
     auto data_type = problem.GetInDataType();
     bool try_tf32  = (data_type == miopenFloat) && problem.UseTF32();
 
-    if(try_tf32)
-    {
-        valid_kernels = loader.fill_valid_kernels(CKConvDirection::Fwd, problem, data_type, true);
-    }
-    if(valid_kernels.empty())
-    {
-        valid_kernels = loader.fill_valid_kernels(CKConvDirection::Fwd, problem, data_type, false);
-    }
+    valid_kernels = loader.fill_valid_kernels_with_tf32_fallback(
+        CKConvDirection::Fwd, problem, data_type, try_tf32);
 
     static const std::string& arch = ctx.GetStream().GetDeviceName();
     if(arch == "gfx90a")
@@ -336,18 +315,10 @@ void PerformanceConfigHipImplicitGemmGroupFwdXdlops::HeuristicInit(
 #endif
 
     auto data_type = problem.GetInDataType();
-    bool try_tf32  = (data_type == miopenFloat) && problem.UseTF32();
+    use_tf32       = (data_type == miopenFloat) && problem.UseTF32();
 
-    if(try_tf32)
-    {
-        use_tf32      = true;
-        valid_kernels = loader.fill_valid_kernels(CKConvDirection::Fwd, problem, data_type, true);
-    }
-    if(valid_kernels.empty())
-    {
-        use_tf32      = false;
-        valid_kernels = loader.fill_valid_kernels(CKConvDirection::Fwd, problem, data_type, false);
-    }
+    valid_kernels = loader.fill_valid_kernels_with_tf32_fallback(
+        CKConvDirection::Fwd, problem, data_type, use_tf32);
 
     if(!valid_kernels.empty())
     {

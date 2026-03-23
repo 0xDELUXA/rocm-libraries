@@ -4,10 +4,12 @@
 #pragma once
 
 #include <miopen/config.hpp>
+#include <miopen/logger.hpp>
 #include <miopen/miopen.h>
 
 #include <memory>
 #include <mutex>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -65,6 +67,14 @@ public:
                        const miopen::conv::ProblemDescription& problem,
                        miopenDataType_t dtype,
                        bool use_tf32) const;
+
+    /// Try tf32 first (if use_tf32 is true), then fall back to non-tf32.
+    /// Updates use_tf32 to reflect whether tf32 was actually used.
+    MIOPEN_INTERNALS_EXPORT std::vector<std::string>
+    fill_valid_kernels_with_tf32_fallback(CKConvDirection dir,
+                                          const miopen::conv::ProblemDescription& problem,
+                                          miopenDataType_t dtype,
+                                          bool& use_tf32) const;
 
     MIOPEN_INTERNALS_EXPORT bool is_applicable(CKConvDirection dir,
                                                const miopen::conv::ProblemDescription& problem,
@@ -161,6 +171,55 @@ private:
     // Helper: extract ConvSolution from pointer
     ConvSolution ExtractSolution(ConvSolution* ptr) const;
 };
+
+#if MIOPEN_ENABLE_AI_KERNEL_TUNING
+/// Tokenize a CK kernel name string by extracting the template parameters
+/// between '<' and '>', splitting on commas, and stripping whitespace.
+inline std::vector<std::string> GetKernelAsTokens(const std::string& kernel)
+{
+    std::vector<std::string> tokens;
+    std::string token;
+    std::istringstream tokenStream(
+        kernel.substr(kernel.find('<') + 1, kernel.find('>') - kernel.find('<') - 1));
+    while(std::getline(tokenStream, token, ','))
+    {
+        token.erase(remove_if(token.begin(), token.end(), isspace),
+                    token.end()); // strip whitespace
+        tokens.push_back(token);
+    }
+    return tokens;
+}
+#endif // MIOPEN_ENABLE_AI_KERNEL_TUNING
+
+/// Check whether a kernel_id with embedded split_k is valid for deterministic
+/// execution.  Returns false (invalid) if deterministic is requested and
+/// split_k != 1.
+inline bool IsDeterministicSplitKValid(const std::string& kernel_id, bool is_deterministic)
+{
+    if(!is_deterministic)
+        return true;
+
+    size_t plus_pos = kernel_id.find_last_of('+');
+    if(plus_pos != std::string::npos)
+    {
+        try
+        {
+            int split_k_from_id = std::stoi(kernel_id.substr(plus_pos + 1));
+            if(split_k_from_id != 1)
+            {
+                MIOPEN_LOG_I("Invalid configuration for deterministic mode: split_k="
+                             << split_k_from_id << " (must be 1)");
+                return false;
+            }
+        }
+        catch(const std::exception&)
+        {
+            MIOPEN_LOG_E("Failed to parse split_k from kernel_id: " << kernel_id);
+            return false;
+        }
+    }
+    return true;
+}
 
 } // namespace solver
 } // namespace miopen
