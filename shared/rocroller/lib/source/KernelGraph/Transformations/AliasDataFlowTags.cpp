@@ -90,28 +90,7 @@ namespace rocRoller
                 for(int s : sizes)
                     size *= s;
 
-                return std::make_tuple(memoryType, dataType, size);
-            }
-
-            int TagExtent::totalSize() const
-            {
-                int size = 1;
-                for(int s : sizes)
-                    size *= s;
-                return size;
-            }
-
-            TagExtent::CrossSizeCategoryKey TagExtent::crossSizeTypeKey() const
-            {
-                return std::make_tuple(memoryType, dataType);
-            }
-
-            TagExtent::CompatibleKey TagExtent::compatibleKey() const
-            {
-                int size = 1;
-                for(int s : sizes)
-                    size *= s;
-                return std::make_tuple(memoryType, dataType, size);
+                return std::make_tuple(memoryType, layoutType, dataType, size);
             }
 
             std::string TagExtent::toString() const
@@ -218,24 +197,8 @@ namespace rocRoller
             {
                 bool found = false;
 
-                //AssertFatal(
-                //    typeKey() == inner.typeKey(), ShowValue(typeKey()), ShowValue(inner.typeKey()));
-                //AssertFatal(compatibleKey() == inner.compatibleKey(),
-                //            ShowValue(memoryType),
-                //            ShowValue(inner.memoryType),
-                //            ShowValue(dataType),
-                //            ShowValue(inner.dataType));
-
-                AssertFatal(crossSizeTypeKey() == inner.crossSizeTypeKey(),
-                            ShowValue(memoryType),
-                            ShowValue(inner.memoryType),
-                            ShowValue(layoutType),
-                            ShowValue(dataType),
-                            ShowValue(inner.dataType));
-                AssertFatal(inner.totalSize() <= totalSize(),
-                            ShowValue(inner.totalSize()),
-                            ShowValue(totalSize()));
-
+                AssertFatal(
+                    typeKey() == inner.typeKey(), ShowValue(typeKey()), ShowValue(inner.typeKey()));
                 AssertFatal(dataType != DataType::None, ShowValue(dataType));
 
                 auto itFits
@@ -445,12 +408,10 @@ namespace rocRoller
                 return false;
             }
 
-            //std::map<TagExtent::CategoryKey, std::list<TagExtent>>
-            std::map<TagExtent::CompatibleKey, std::list<TagExtent>>
+            std::map<TagExtent::CategoryKey, std::list<TagExtent>>
                 getGroupedTagExtents(KernelGraph const& kgraph)
             {
-                //std::map<TagExtent::CategoryKey, std::list<TagExtent>> groupedExtents;
-                std::map<TagExtent::CompatibleKey, std::list<TagExtent>> groupedExtents;
+                std::map<TagExtent::CategoryKey, std::list<TagExtent>> groupedExtents;
 
                 ControlFlowRWTracer tracer(kgraph);
 
@@ -490,56 +451,8 @@ namespace rocRoller
                     if(!extent.empty() && extent.dataType != DataType::None
                        && extent.layoutType != LayoutType::MATRIX_ACCUMULATOR)
                     {
-                        groupedExtents[extent.compatibleKey()].push_back(std::move(extent));
-                        //groupedExtents[extent.typeKey()].push_back(std::move(extent));
+                        groupedExtents[extent.typeKey()].push_back(std::move(extent));
                     }
-                }
-                return groupedExtents;
-            }
-
-            std::map<TagExtent::CrossSizeCategoryKey, std::list<TagExtent>>
-                getGroupedTagExtentsCrossSize(KernelGraph const& kgraph)
-            {
-                std::map<TagExtent::CrossSizeCategoryKey, std::list<TagExtent>> groupedExtents;
-                ControlFlowRWTracer                                             tracer(kgraph);
-                for(auto mt : kgraph.coordinates.getNodes<CoordinateGraph::MacroTile>())
-                {
-                    auto isView = [&](auto const& edge) {
-                        auto const* dfe = std::get_if<CoordinateGraph::DataFlowEdge>(&edge);
-                        return dfe && std::holds_alternative<CoordinateGraph::View>(*dfe);
-                    };
-                    auto outViews
-                        = kgraph.coordinates
-                              .getConnectedNodeIndices<Graph::Direction::Downstream>(mt, isView)
-                              .to<std::vector>();
-                    auto inViews
-                        = kgraph.coordinates
-                              .getConnectedNodeIndices<Graph::Direction::Upstream>(mt, isView)
-                              .to<std::vector>();
-                    if(inViews.size() > 0)
-                    {
-                        AssertFatal(outViews.empty(),
-                                    "Both in and out view edges are not supported.");
-                    }
-                    auto records = tracer.coordinatesReadWrite(mt);
-                    for(auto mtView : outViews)
-                    {
-                        auto viewRecs = tracer.coordinatesReadWrite(mtView);
-                        records.insert(records.end(), viewRecs.begin(), viewRecs.end());
-                    }
-                    auto extent = getExtent(kgraph, records);
-                    if(!extent.empty() && extent.dataType != DataType::None
-                       && extent.layoutType != LayoutType::MATRIX_ACCUMULATOR)
-                    {
-                        groupedExtents[extent.crossSizeTypeKey()].push_back(std::move(extent));
-                    }
-                }
-
-                for(auto& [key, extents] : groupedExtents)
-                {
-                    extents.sort([](TagExtent const& a, TagExtent const& b) {
-                        return a.totalSize() > b.totalSize();
-                    });
                 }
                 return groupedExtents;
             }
@@ -631,89 +544,13 @@ namespace rocRoller
                 return aliases;
             }
 
-            std::map<int, int> findCrossSizeAliasCandidatesForExtents(KernelGraph const&   kgraph,
-                                                                      std::list<TagExtent> extents)
-            {
-                std::map<int, int> aliases;
-                bool               foundAny = false;
-                do
-                {
-                    foundAny = false;
-                    for(auto outer = extents.begin(); outer != extents.end(); outer++)
-                    {
-                        for(auto inner = extents.begin(); inner != extents.end();)
-                        {
-                            if(outer != inner && inner->totalSize() <= outer->totalSize()
-                               && inner->fitsWithin(kgraph, *outer))
-                            {
-                                foundAny = true;
-                                AssertFatal(!aliases.contains(inner->baseTag));
-                                aliases[inner->baseTag] = outer->baseTag;
-                                Log::debug("{} -> {} (cross-size: {} <= {})",
-                                           inner->baseTag,
-                                           outer->baseTag,
-                                           inner->totalSize(),
-                                           outer->totalSize());
-                                inner->validate(kgraph);
-                                outer->merge(kgraph, *inner);
-                                outer->validate(kgraph);
-                                Log::debug("merged {}", outer->toString());
-                                inner = extents.erase(inner);
-                            }
-                            else
-                            {
-                                inner++;
-                            }
-                        }
-                    }
-                    Log::debug("{} cross-size aliases so far.", aliases.size());
-                } while(foundAny);
-                for(auto ext : extents)
-                {
-                    Log::debug("{}\n{}", ext.toString(), ext.orderInfo(kgraph));
-                    ext.validate(kgraph);
-                }
-                return aliases;
-            }
-
-            std::map<int, int> findAliasCandidatesCrossSize(KernelGraph const& kgraph)
-            {
-                auto               groupedExtents = getGroupedTagExtentsCrossSize(kgraph);
-                std::map<int, int> aliases;
-                for(auto& [typeKey, extents] : groupedExtents)
-                {
-                    auto logger = Log::getLogger();
-                    if(logger->should_log(LogLevel::Debug))
-                    {
-                        std::ostringstream msg;
-                        streamJoinTuple(msg, ", ", typeKey);
-                        logger->debug("Cross-size aliases for {{{}}} tags:", msg.str());
-                        logger->debug("-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=");
-                        for(auto const& ext : extents)
-                            logger->debug(ext.toString());
-                    }
-                    auto theseAliases = findCrossSizeAliasCandidatesForExtents(kgraph, extents);
-                    aliases.insert(theseAliases.begin(), theseAliases.end());
-                }
-                auto logger = Log::getLogger();
-                if(logger->should_log(LogLevel::Debug))
-                {
-                    for(auto const& [a, b] : aliases)
-                    {
-                        logger->debug("cross-size: {} -> {}", a, b);
-                    }
-                }
-                return aliases;
-            }
-
         }
 
         KernelGraph AliasDataFlowTags::apply(KernelGraph const& original)
         {
             auto rv = original;
 
-            //auto aliases = AliasDataFlowTagsDetail::findAliasCandidates(rv);
-            auto aliases = AliasDataFlowTagsDetail::findAliasCandidatesCrossSize(rv);
+            auto aliases = AliasDataFlowTagsDetail::findAliasCandidates(rv);
 
             for(auto const& [inner, outer] : aliases)
             {

@@ -119,21 +119,7 @@ namespace rocRoller
 
             // Variable type is not checked as we can alias as long as the other
             // requirements are met.
-            //AssertFatal(target->registerCount() == tmpl->registerCount(),
-            //            ShowValue(target->registerCount()),
-            //            ShowValue(tmpl->registerCount()),
-            //            ShowValue(tag),
-            //            ShowValue(dst));
-            //AssertFatal(target->regType() == tmpl->regType(),
-            //            ShowValue(target->regType()),
-            //            ShowValue(tmpl->regType()),
-            //            ShowValue(tag),
-            //            ShowValue(dst));
-
-            //// Create a new Register::Value that points to the same allocation as target
-            //r = target->subset(iota(0ul, target->registerCount()).to<std::vector>());
-
-            AssertFatal(target->registerCount() >= tmpl->registerCount(),
+            AssertFatal(target->registerCount() == tmpl->registerCount(),
                         ShowValue(target->registerCount()),
                         ShowValue(tmpl->registerCount()),
                         ShowValue(tag),
@@ -143,7 +129,9 @@ namespace rocRoller
                         ShowValue(tmpl->regType()),
                         ShowValue(tag),
                         ShowValue(dst));
-            r = target->subset(iota(0ul, tmpl->registerCount()).to<std::vector>());
+
+            // Create a new Register::Value that points to the same allocation as target
+            r = target->subset(iota(0ul, target->registerCount()).to<std::vector>());
 
             // Set the data type.
             r->setVariableType(tmpl->variableType());
