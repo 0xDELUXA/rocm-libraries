@@ -83,6 +83,11 @@ public:
     {
         free();
 
+        if(system_memory::singleton().verbose_mem_management)
+        {
+            std::cout << "Requesting a host allocation of " << system_memory::byte_size_to_str(size)
+                      << "." << std::endl;
+        }
         if(size > system_memory::singleton().get_usable_bytes())
         {
             std::stringstream msg;
@@ -141,6 +146,12 @@ public:
         is_pinned_memory = make_it_pinned;
         bsize_track      = size;
         system_memory::singleton().record_used_bytes(bsize_track);
+
+        if(system_memory::singleton().verbose_mem_management)
+        {
+            std::cout << "Successfully allocated (host)." << std::endl;
+            system_memory::singleton().print_info();
+        }
     }
 
     size_t size() const
@@ -159,6 +170,12 @@ public:
         {
             if(owned)
             {
+                if(system_memory::singleton().verbose_mem_management)
+                {
+                    std::cout << "Freeing host allocation of "
+                              << system_memory::byte_size_to_str(bsize) << "." << std::endl;
+                    system_memory::singleton().print_info();
+                }
                 if(is_pinned_memory)
                 {
                     (void)hipHostFree(buf);
@@ -171,7 +188,14 @@ public:
                     std::free(buf);
 #endif
                 }
+
                 system_memory::singleton().release_used_bytes(bsize_track);
+
+                if(system_memory::singleton().verbose_mem_management)
+                {
+                    std::cout << "Successfully freed host allocation." << std::endl;
+                    system_memory::singleton().print_info();
+                }
             }
             buf   = nullptr;
             bsize = bsize_track = 0;

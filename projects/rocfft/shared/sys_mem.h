@@ -22,6 +22,7 @@
 #define SYSMEM_H
 
 #include <fstream>
+#include <iostream>
 #include <memory>
 #include <mutex>
 #include <shared_mutex>
@@ -171,6 +172,13 @@ public:
         return ret;
     }
 
+    bool verbose_mem_management = false;
+
+    void print_info()
+    {
+        update_free_bytes(true);
+    }
+
 private:
     const size_t total_bytes;
     size_t       free_bytes;
@@ -192,10 +200,19 @@ private:
         set_limit_bytes(total_bytes);
     }
 
-    void update_free_bytes()
+    void update_free_bytes(bool speak = false)
     {
         std::unique_lock lock(sys_memory_mutex);
         free_bytes = read_sys_mem<sys_mem_label::FREE>();
+        if(verbose_mem_management || speak)
+        {
+            std::cout << "update_free_bytes completed:\n"
+                      << "----------------------------\n"
+                      << "\tTotal bytes = " << byte_size_to_str(total_bytes) << "\n"
+                      << "\tFree bytes = " << byte_size_to_str(free_bytes) << "\n"
+                      << "\tLimit bytes = " << byte_size_to_str(limit_bytes) << "\n"
+                      << "\tUsed bytes = " << byte_size_to_str(used_bytes) << std::endl;
+        }
     }
 
     enum class sys_mem_label

@@ -79,6 +79,11 @@ public:
     {
         free();
         const auto dev_prop = get_curr_device_prop();
+        if(system_memory::singleton().verbose_mem_management)
+        {
+            std::cout << "Requesting an (integrated) device allocation of "
+                      << system_memory::byte_size_to_str(size) << "." << std::endl;
+        }
         if(dev_prop.integrated && size > system_memory::singleton().get_usable_bytes())
         {
             std::stringstream msg;
@@ -109,6 +114,12 @@ public:
         if(dev_prop.integrated)
             system_memory::singleton().record_used_bytes(bsize);
 
+        if(system_memory::singleton().verbose_mem_management)
+        {
+            std::cout << "Successfully allocated (integrated device)." << std::endl;
+            system_memory::singleton().print_info();
+        }
+
         return ret;
     }
 
@@ -123,13 +134,29 @@ public:
         {
             if(owned)
             {
+
+                if(system_memory::singleton().verbose_mem_management)
+                {
+                    std::cout << "Freeing integrated device allocation of "
+                              << system_memory::byte_size_to_str(bsize) << "." << std::endl;
+                    system_memory::singleton().print_info();
+                }
+
                 // free on the device we allocated on
                 rocfft_scoped_device dev(device);
                 (void)hipFree(buf);
 
                 const auto dev_prop = get_curr_device_prop();
                 if(dev_prop.integrated)
+                {
                     system_memory::singleton().release_used_bytes(bsize);
+                    if(system_memory::singleton().verbose_mem_management)
+                    {
+                        std::cout << "Successfully freed integrated device allocation."
+                                  << std::endl;
+                        system_memory::singleton().print_info();
+                    }
+                }
             }
             buf   = nullptr;
             bsize = 0;

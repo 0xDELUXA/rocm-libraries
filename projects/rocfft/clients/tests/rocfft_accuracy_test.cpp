@@ -91,6 +91,14 @@ TEST_P(accuracy_test, vs_fftw)
 {
     rocfft_params params(GetParam());
 
+    system_memory::singleton().verbose_mem_management
+        = (params.is_real() && params.length[0] == 527 && params.length[1] == 25
+           && params.nbatch == 67500 && params.placement == fft_placement_inplace)
+          || (params.is_real() && params.length[0] == 378 && params.length[1] == 42
+              && params.nbatch == 66000 && params.placement == fft_placement_inplace);
+    if(system_memory::singleton().verbose_mem_management)
+        last_cpu_fft_data = last_cpu_fft_cache();
+
     params.validate();
 
     // Test that the tokenization works as expected.
