@@ -295,51 +295,51 @@ class TestPrintTypeMismatchSummary:
         result = printTypeMismatchSummary()
         assert result == 3
 
-    def test_outputs_warning_to_stderr(self, capsys):
-        """Summary should be printed to stderr, not stdout."""
+    def test_outputs_warning_to_stdout(self, capsys):
+        """Summary should be printed to stdout so it appears in build logs."""
         validateParameterTypes({"UseCustomMainLoopSchedule": False}, srcFile="test.yaml")
         printTypeMismatchSummary()
         captured = capsys.readouterr()
-        assert captured.out == ""
-        assert "WARNING" in captured.err
+        assert captured.err == ""
+        assert "WARNING" in captured.out
 
     def test_output_contains_param_name(self, capsys):
         validateParameterTypes({"UseCustomMainLoopSchedule": False})
         printTypeMismatchSummary()
         captured = capsys.readouterr()
-        assert "UseCustomMainLoopSchedule" in captured.err
+        assert "UseCustomMainLoopSchedule" in captured.out
 
     def test_output_contains_actual_type(self, capsys):
         validateParameterTypes({"UseCustomMainLoopSchedule": False})
         printTypeMismatchSummary()
         captured = capsys.readouterr()
-        assert "bool" in captured.err
+        assert "bool" in captured.out
 
     def test_output_contains_expected_type(self, capsys):
         validateParameterTypes({"UseCustomMainLoopSchedule": False})
         printTypeMismatchSummary()
         captured = capsys.readouterr()
-        assert "int" in captured.err
+        assert "int" in captured.out
 
     def test_output_contains_solution_count(self, capsys):
         validateParameterTypes({"UseCustomMainLoopSchedule": False}, srcFile="a.yaml")
         validateParameterTypes({"UseCustomMainLoopSchedule": True}, srcFile="b.yaml")
         printTypeMismatchSummary()
         captured = capsys.readouterr()
-        assert "2 solutions" in captured.err
+        assert "2 solutions" in captured.out
 
     def test_output_contains_file_count(self, capsys):
         validateParameterTypes({"UseCustomMainLoopSchedule": False}, srcFile="a.yaml")
         validateParameterTypes({"UseCustomMainLoopSchedule": True}, srcFile="b.yaml")
         printTypeMismatchSummary()
         captured = capsys.readouterr()
-        assert "2 files" in captured.err
+        assert "2 files" in captured.out
 
     def test_output_contains_fix_message(self, capsys):
         validateParameterTypes({"UseCustomMainLoopSchedule": False})
         printTypeMismatchSummary()
         captured = capsys.readouterr()
-        assert "Fix these to prevent future build failures" in captured.err
+        assert "Fix these to prevent future build failures" in captured.out
 
     def test_no_output_when_clean(self, capsys):
         """When there are no mismatches, nothing should be printed."""
@@ -354,5 +354,5 @@ class TestPrintTypeMismatchSummary:
         validateParameterTypes({"BufferLoad": 0})
         printTypeMismatchSummary()
         captured = capsys.readouterr()
-        assert "UseCustomMainLoopSchedule" in captured.err
-        assert "BufferLoad" in captured.err
+        assert "UseCustomMainLoopSchedule" in captured.out
+        assert "BufferLoad" in captured.out
