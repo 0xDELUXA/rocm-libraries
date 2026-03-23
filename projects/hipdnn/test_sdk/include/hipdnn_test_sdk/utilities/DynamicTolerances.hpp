@@ -911,8 +911,7 @@ float calculateRMSNormFwdTolerance(double xMin,
     auto epsilon = static_cast<double>(std::numeric_limits<ComputeType>::epsilon());
 
     // Use shared computeGamma() for the error growth factor
-    const double gamma
-        = hipdnn_test_sdk::utilities::computeGamma(numberOfAccumulations, epsilon);
+    const double gamma = hipdnn_test_sdk::utilities::computeGamma(numberOfAccumulations, epsilon);
 
     constexpr double GAMMA_MAX = 0.5;
     if(gamma >= GAMMA_MAX)
