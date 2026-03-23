@@ -1973,14 +1973,7 @@ std::vector<RMSNormFwdToleranceTestCase>
     return {// C=1
             {-1.0, 1.0, -1.0, 1.0, 1, 0.0, 0.0, ((gamma(1) * 1.0 + 1.0 * u) / 2.0) + 5.0 * u},
             // C=10
-            {-1.0,
-             1.0,
-             -1.0,
-             1.0,
-             10,
-             0.0,
-             0.0,
-             ((gamma(10) * 10.0 + 10.0 * u) / 2.0) + 5.0 * u}};
+            {-1.0, 1.0, -1.0, 1.0, 10, 0.0, 0.0, ((gamma(10) * 10.0 + 10.0 * u) / 2.0) + 5.0 * u}};
 }
 
 // Half / Float / Float (Output casting error: outputEpsilon(half=2^-10) > epsilon(float=2^-23))
@@ -1996,14 +1989,7 @@ std::vector<RMSNormFwdToleranceTestCase>
             // C=1
             {-1.0, 1.0, -1.0, 1.0, 1, 0.0, 0.0, (gamma(1) * 1.0 / 2.0) + 5.0 * u + 1.0 * uHalf},
             // C=10
-            {-1.0,
-             1.0,
-             -1.0,
-             1.0,
-             10,
-             0.0,
-             0.0,
-             (gamma(10) * 10.0 / 2.0) + 5.0 * u + 1.0 * uHalf}};
+            {-1.0, 1.0, -1.0, 1.0, 10, 0.0, 0.0, (gamma(10) * 10.0 / 2.0) + 5.0 * u + 1.0 * uHalf}};
 }
 
 // Half / Half / Half
@@ -2036,14 +2022,7 @@ std::vector<RMSNormFwdToleranceTestCase>
             // C=1
             {-1.0, 1.0, -1.0, 1.0, 1, 0.0, 0.0, (gamma(1) * 1.0 / 2.0) + 5.0 * u + 1.0 * uBf16},
             // C=10
-            {-1.0,
-             1.0,
-             -1.0,
-             1.0,
-             10,
-             0.0,
-             0.0,
-             (gamma(10) * 10.0 / 2.0) + 5.0 * u + 1.0 * uBf16}};
+            {-1.0, 1.0, -1.0, 1.0, 10, 0.0, 0.0, (gamma(10) * 10.0 / 2.0) + 5.0 * u + 1.0 * uBf16}};
 }
 
 // Bfloat16 / Bfloat16 / Bfloat16
@@ -2246,8 +2225,7 @@ TEST(TestCalculateRMSNormFwdTolerance, ToleranceScalesWithChannels)
     // FP32: tolerance should grow roughly quadratically with C
     auto tolFp32C1 = calculateRMSNormFwdTolerance<float, float, float>(-1.0, 1.0, -1.0, 1.0, 1);
     auto tolFp32C10 = calculateRMSNormFwdTolerance<float, float, float>(-1.0, 1.0, -1.0, 1.0, 10);
-    auto tolFp32C100
-        = calculateRMSNormFwdTolerance<float, float, float>(-1.0, 1.0, -1.0, 1.0, 100);
+    auto tolFp32C100 = calculateRMSNormFwdTolerance<float, float, float>(-1.0, 1.0, -1.0, 1.0, 100);
 
     EXPECT_LT(tolFp32C1, tolFp32C10) << "FP32: C=10 should have higher tolerance than C=1";
     EXPECT_LT(tolFp32C10, tolFp32C100) << "FP32: C=100 should have higher tolerance than C=10";
@@ -2257,15 +2235,16 @@ TEST(TestCalculateRMSNormFwdTolerance, ToleranceScalesWithChannels)
     EXPECT_GT(ratioFp32, 10.0) << "FP32: ratio C10/C1 should reflect ~C^2 growth";
 
     // BF16 (statistical): tolerance should grow ~ C^1.5
+    // C=100 exceeds gamma >= 0.5 for bf16 (gamma ≈ 0.663), so use C=50 as upper bound
     auto tolBf16C1
         = calculateRMSNormFwdTolerance<bfloat16, bfloat16, bfloat16>(-1.0, 1.0, -1.0, 1.0, 1);
     auto tolBf16C10
         = calculateRMSNormFwdTolerance<bfloat16, bfloat16, bfloat16>(-1.0, 1.0, -1.0, 1.0, 10);
-    auto tolBf16C100
-        = calculateRMSNormFwdTolerance<bfloat16, bfloat16, bfloat16>(-1.0, 1.0, -1.0, 1.0, 100);
+    auto tolBf16C50
+        = calculateRMSNormFwdTolerance<bfloat16, bfloat16, bfloat16>(-1.0, 1.0, -1.0, 1.0, 50);
 
     EXPECT_LT(tolBf16C1, tolBf16C10) << "BF16: C=10 should have higher tolerance than C=1";
-    EXPECT_LT(tolBf16C10, tolBf16C100) << "BF16: C=100 should have higher tolerance than C=10";
+    EXPECT_LT(tolBf16C10, tolBf16C50) << "BF16: C=50 should have higher tolerance than C=10";
 
     auto ratioBf16 = static_cast<double>(tolBf16C10) / static_cast<double>(tolBf16C1);
     EXPECT_GT(ratioBf16, 5.0) << "BF16: ratio C10/C1 should reflect growth";
