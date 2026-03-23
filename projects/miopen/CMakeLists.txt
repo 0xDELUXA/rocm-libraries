@@ -335,18 +335,18 @@ if( MIOPEN_BACKEND STREQUAL "HIP" OR MIOPEN_BACKEND STREQUAL "HIPOC" OR MIOPEN_B
         endif()
     endif()
 
+    # Arch name sanitization for CMake target names (used by ck_impl and unbundling)
+    function(miopen_sanitize_arch ARCH OUT_VAR)
+        string(REPLACE ":" "_" _r "${ARCH}")
+        string(REPLACE "+" "p" _r "${_r}")
+        string(REPLACE "-" "_" _r "${_r}")
+        set(${OUT_VAR} "${_r}" PARENT_SCOPE)
+    endfunction()
+
     # --- Per-architecture CK conv library unbundling ---
     if(MIOPEN_CK_UNBUNDLE_PER_ARCH AND MIOPEN_USE_COMPOSABLEKERNEL)
         # Unbundle the fat libdevice_conv_operations.a into per-arch .a files
         # so each per-target MIOpen .so can link only the CK code it needs.
-
-        # Arch name sanitization for CMake target names
-        function(miopen_sanitize_arch ARCH OUT_VAR)
-            string(REPLACE ":" "_" _r "${ARCH}")
-            string(REPLACE "+" "p" _r "${_r}")
-            string(REPLACE "-" "_" _r "${_r}")
-            set(${OUT_VAR} "${_r}" PARENT_SCOPE)
-        endfunction()
 
         # Find unbundling tools
         find_program(MIOPEN_OFFLOAD_BUNDLER clang-offload-bundler

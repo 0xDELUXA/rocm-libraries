@@ -172,7 +172,7 @@ TEST(CPU_CKGroupedConvLoader_NONE, LoaderReturnsEmptyOnFailure)
     EXPECT_FALSE(loader.IsApplicable(CKConvDirection::Fwd, problem, miopenHalf, false));
     EXPECT_FALSE(
         loader.IsArgsSupported(CKConvDirection::Fwd, problem, "dummy_kernel", miopenHalf, false));
-    EXPECT_EQ(loader.GetWorkspaceSize(CKConvDirection::Fwd, problem, miopenHalf), 0u);
+    EXPECT_EQ(loader.GetWorkspaceSize(CKConvDirection::Fwd, problem, miopenHalf, false), 0u);
     EXPECT_EQ(loader.GetSolution(CKConvDirection::Fwd, ctx, problem, "dummy", false).status,
               miopenStatusInternalError);
 
@@ -196,7 +196,7 @@ TEST(CPU_CKGroupedConvLoader_NONE, LoaderReturnsEmptyOnFailure)
     EXPECT_FALSE(loader.IsApplicable(CKConvDirection::Bwd, problem, miopenHalf, false));
     EXPECT_FALSE(
         loader.IsArgsSupported(CKConvDirection::Bwd, problem, "dummy_kernel", miopenHalf, false));
-    EXPECT_EQ(loader.GetWorkspaceSize(CKConvDirection::Bwd, problem, miopenHalf), 0u);
+    EXPECT_EQ(loader.GetWorkspaceSize(CKConvDirection::Bwd, problem, miopenHalf, false), 0u);
     EXPECT_EQ(loader.GetSolution(CKConvDirection::Bwd, ctx, problem, "dummy", false).status,
               miopenStatusInternalError);
 
@@ -220,7 +220,7 @@ TEST(CPU_CKGroupedConvLoader_NONE, LoaderReturnsEmptyOnFailure)
     EXPECT_FALSE(loader.IsApplicable(CKConvDirection::Wrw, problem, miopenHalf, false));
     EXPECT_FALSE(
         loader.IsArgsSupported(CKConvDirection::Wrw, problem, "dummy_kernel", miopenHalf, false));
-    EXPECT_EQ(loader.GetWorkspaceSize(CKConvDirection::Wrw, problem, miopenHalf), 0u);
+    EXPECT_EQ(loader.GetWorkspaceSize(CKConvDirection::Wrw, problem, miopenHalf, false), 0u);
     EXPECT_EQ(loader.GetSolution(CKConvDirection::Wrw, ctx, problem, "dummy", false).status,
               miopenStatusInternalError);
 }
