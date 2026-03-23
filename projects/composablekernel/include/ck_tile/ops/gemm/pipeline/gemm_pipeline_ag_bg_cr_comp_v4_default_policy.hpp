@@ -21,12 +21,13 @@ struct GemmPipelineAgBgCrCompV4DefaultPolicy
     template <typename Problem>
     CK_TILE_HOST_DEVICE static constexpr auto GetBlockGemm()
     {
-        using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
-        using WarpTile   = typename Problem::BlockGemmShape::WarpTile;
-        using ATypeToUse = typename DetermineWarpPrecType<typename Problem::ADataType,
-                                                          typename Problem::BDataType>::a_prec_type;
-        using BTypeToUse = typename DetermineWarpPrecType<typename Problem::ADataType,
-                                                          typename Problem::BDataType>::b_prec_type;
+        using BlockWarps   = typename Problem::BlockGemmShape::BlockWarps;
+        using WarpTile     = typename Problem::BlockGemmShape::WarpTile;
+        using WarpPrecType = DetermineWarpPrecType<typename Problem::ADataType,
+                                                   typename Problem::BDataType,
+                                                   typename Problem::ADataType>;
+        using ATypeToUse   = WarpPrecType::a_prec_type;
+        using BTypeToUse   = WarpPrecType::b_prec_type;
 
         constexpr index_t vector_size =
             DS_READ_TR_SIZE() / sizeof(typename Problem::ComputeDataType);
