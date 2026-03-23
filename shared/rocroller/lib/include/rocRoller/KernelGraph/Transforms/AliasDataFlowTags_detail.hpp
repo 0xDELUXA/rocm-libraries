@@ -63,10 +63,14 @@ namespace rocRoller
              */
             struct TagExtent
             {
-                using CategoryKey = std::tuple<MemoryType, LayoutType, DataType, int>;
+                using CrossSizeCategoryKey = std::tuple<MemoryType, DataType>;
 
                 using CompatibleKey = std::tuple<MemoryType, DataType, int>;
                 CompatibleKey compatibleKey() const;
+
+                using CategoryKey = std::tuple<MemoryType, DataType, int>;
+                int                  totalSize() const;
+                CrossSizeCategoryKey crossSizeTypeKey() const;
 
                 int              baseTag = -1;
                 std::set<int>    tags;
@@ -98,6 +102,13 @@ namespace rocRoller
                  * Returns true if `this` fits within a gap within `outer`.
                  */
                 bool fitsWithin(KernelGraph const& kgraph, TagExtent const& outer);
+
+                std::map<TagExtent::CrossSizeCategoryKey, std::list<TagExtent>>
+                    getGroupedTagExtentsCrossSize(KernelGraph const& kgraph);
+                std::map<int, int>
+                                   findCrossSizeAliasCandidatesForExtents(KernelGraph const&   kgraph,
+                                                                          std::list<TagExtent> extents);
+                std::map<int, int> findAliasCandidatesCrossSize(KernelGraph const& kgraph);
             };
 
             /**
