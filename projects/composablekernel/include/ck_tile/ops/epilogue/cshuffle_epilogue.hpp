@@ -7,6 +7,7 @@
 #include "ck_tile/core.hpp"
 #include "ck_tile/ops/common/utils.hpp"
 #include "ck_tile/ops/gemm/warp/warp_gemm_dispatcher.hpp"
+#include "ck_tile/ops/common/determine_warp_prec_type.hpp"
 #include "ck_tile/ops/common/tensor_layout.hpp"
 #include "ck_tile/ops/elementwise/unary_element_wise_operation.hpp"
 
