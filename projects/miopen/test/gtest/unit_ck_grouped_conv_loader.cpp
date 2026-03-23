@@ -14,18 +14,10 @@
 #endif
 
 using miopen::solver::CKConvDirection;
+using miopen::solver::GetCurrentDeviceName;
+using miopen::solver::IsDeterministicSplitKValid;
 
 namespace {
-
-#if MIOPEN_BACKEND_HIP
-std::string GetDeviceArch()
-{
-    hipDeviceProp_t props{};
-    if(hipGetDeviceProperties(&props, 0) != hipSuccess)
-        return {};
-    return std::string(props.gcnArchName);
-}
-#endif
 
 /// Build a minimal grouped-conv forward ProblemDescription suitable for
 /// querying the CK loader.  Uses group=4, NHWC, FP16, small spatial dims.
@@ -58,7 +50,7 @@ miopen::conv::ProblemDescription MakeGroupedConvProblem()
 
 TEST(GPU_CKGroupedConvLoader_FP16, LoaderLoadsForCurrentDevice)
 {
-    const auto device_name = GetDeviceArch();
+    const auto device_name = GetCurrentDeviceName();
     ASSERT_FALSE(device_name.empty()) << "Failed to query HIP device";
 
     const auto& loader = miopen::solver::CKGroupedConvLibLoader::Get(device_name);
@@ -78,7 +70,7 @@ TEST(GPU_CKGroupedConvLoader_FP16, LoaderLoadsForCurrentDevice)
 
 TEST(GPU_CKGroupedConvLoader_FP16, LoaderFillsValidKernels)
 {
-    const auto device_name = GetDeviceArch();
+    const auto device_name = GetCurrentDeviceName();
     ASSERT_FALSE(device_name.empty());
 
     const auto& loader = miopen::solver::CKGroupedConvLibLoader::Get(device_name);
@@ -86,16 +78,33 @@ TEST(GPU_CKGroupedConvLoader_FP16, LoaderFillsValidKernels)
         GTEST_SKIP() << "CK grouped conv library not installed for " << device_name;
 
     const auto problem = MakeGroupedConvProblem();
-    const auto kernels =
-        loader.fill_valid_kernels(CKConvDirection::Fwd, problem, miopenHalf, false);
+    const auto kernels = loader.FillValidKernels(CKConvDirection::Fwd, problem, miopenHalf, false);
 
     EXPECT_FALSE(kernels.empty()) << "Expected at least one valid CK grouped conv kernel for "
                                   << device_name;
 }
 
+TEST(GPU_CKGroupedConvLoader_FP16, LoaderFillsValidKernelsWithTf32Fallback)
+{
+    const auto device_name = GetCurrentDeviceName();
+    ASSERT_FALSE(device_name.empty());
+
+    const auto& loader = miopen::solver::CKGroupedConvLibLoader::Get(device_name);
+    if(!loader.IsLoaded())
+        GTEST_SKIP() << "CK grouped conv library not installed for " << device_name;
+
+    const auto problem = MakeGroupedConvProblem();
+    bool use_tf32      = false;
+    const auto kernels = loader.FillValidKernelsWithTf32Fallback(
+        CKConvDirection::Fwd, problem, miopenHalf, use_tf32);
+
+    EXPECT_FALSE(kernels.empty()) << "Expected at least one valid kernel for " << device_name;
+    EXPECT_FALSE(use_tf32) << "use_tf32 should remain false when called with false";
+}
+
 TEST(GPU_CKGroupedConvLoader_FP16, LoaderCachesPerDevice)
 {
-    const auto device_name = GetDeviceArch();
+    const auto device_name = GetCurrentDeviceName();
     ASSERT_FALSE(device_name.empty());
 
     const auto& loader1 = miopen::solver::CKGroupedConvLibLoader::Get(device_name);
@@ -106,7 +115,7 @@ TEST(GPU_CKGroupedConvLoader_FP16, LoaderCachesPerDevice)
 
 TEST(GPU_CKGroupedConvLoader_FP16, LoaderStripsDeviceSuffix)
 {
-    const auto device_name = GetDeviceArch();
+    const auto device_name = GetCurrentDeviceName();
     ASSERT_FALSE(device_name.empty());
 
     // Strip any existing suffix to get the base arch
@@ -143,30 +152,95 @@ TEST(CPU_CKGroupedConvLoader_NONE, LoaderReturnsEmptyOnFailure)
     miopen::ExecutionContext ctx;
 
     // All wrappers should return safe defaults when the library is not loaded
-    EXPECT_TRUE(
-        loader.fill_valid_kernels(CKConvDirection::Fwd, problem, miopenHalf, false).empty());
-    EXPECT_FALSE(loader.is_applicable(CKConvDirection::Fwd, problem, miopenHalf, false));
+    EXPECT_TRUE(loader.FillValidKernels(CKConvDirection::Fwd, problem, miopenHalf, false).empty());
+    {
+        bool use_tf32 = true;
+        EXPECT_TRUE(loader
+                        .FillValidKernelsWithTf32Fallback(
+                            CKConvDirection::Fwd, problem, miopenHalf, use_tf32)
+                        .empty());
+        EXPECT_FALSE(use_tf32) << "use_tf32 should become false when no kernels found";
+    }
+    {
+        bool use_tf32 = false;
+        EXPECT_TRUE(loader
+                        .FillValidKernelsWithTf32Fallback(
+                            CKConvDirection::Fwd, problem, miopenHalf, use_tf32)
+                        .empty());
+        EXPECT_FALSE(use_tf32) << "use_tf32 should remain false";
+    }
+    EXPECT_FALSE(loader.IsApplicable(CKConvDirection::Fwd, problem, miopenHalf, false));
     EXPECT_FALSE(
-        loader.is_args_supported(CKConvDirection::Fwd, problem, "dummy_kernel", miopenHalf, false));
-    EXPECT_EQ(loader.get_workspace_size(CKConvDirection::Fwd, problem, miopenHalf), 0u);
-    EXPECT_EQ(loader.get_solution(CKConvDirection::Fwd, ctx, problem, "dummy", false).status,
+        loader.IsArgsSupported(CKConvDirection::Fwd, problem, "dummy_kernel", miopenHalf, false));
+    EXPECT_EQ(loader.GetWorkspaceSize(CKConvDirection::Fwd, problem, miopenHalf), 0u);
+    EXPECT_EQ(loader.GetSolution(CKConvDirection::Fwd, ctx, problem, "dummy", false).status,
               miopenStatusInternalError);
 
-    EXPECT_TRUE(
-        loader.fill_valid_kernels(CKConvDirection::Bwd, problem, miopenHalf, false).empty());
-    EXPECT_FALSE(loader.is_applicable(CKConvDirection::Bwd, problem, miopenHalf, false));
+    EXPECT_TRUE(loader.FillValidKernels(CKConvDirection::Bwd, problem, miopenHalf, false).empty());
+    {
+        bool use_tf32 = true;
+        EXPECT_TRUE(loader
+                        .FillValidKernelsWithTf32Fallback(
+                            CKConvDirection::Bwd, problem, miopenHalf, use_tf32)
+                        .empty());
+        EXPECT_FALSE(use_tf32) << "use_tf32 should become false when no kernels found";
+    }
+    {
+        bool use_tf32 = false;
+        EXPECT_TRUE(loader
+                        .FillValidKernelsWithTf32Fallback(
+                            CKConvDirection::Bwd, problem, miopenHalf, use_tf32)
+                        .empty());
+        EXPECT_FALSE(use_tf32) << "use_tf32 should remain false";
+    }
+    EXPECT_FALSE(loader.IsApplicable(CKConvDirection::Bwd, problem, miopenHalf, false));
     EXPECT_FALSE(
-        loader.is_args_supported(CKConvDirection::Bwd, problem, "dummy_kernel", miopenHalf, false));
-    EXPECT_EQ(loader.get_workspace_size(CKConvDirection::Bwd, problem, miopenHalf), 0u);
-    EXPECT_EQ(loader.get_solution(CKConvDirection::Bwd, ctx, problem, "dummy", false).status,
+        loader.IsArgsSupported(CKConvDirection::Bwd, problem, "dummy_kernel", miopenHalf, false));
+    EXPECT_EQ(loader.GetWorkspaceSize(CKConvDirection::Bwd, problem, miopenHalf), 0u);
+    EXPECT_EQ(loader.GetSolution(CKConvDirection::Bwd, ctx, problem, "dummy", false).status,
               miopenStatusInternalError);
 
-    EXPECT_TRUE(
-        loader.fill_valid_kernels(CKConvDirection::Wrw, problem, miopenHalf, false).empty());
-    EXPECT_FALSE(loader.is_applicable(CKConvDirection::Wrw, problem, miopenHalf, false));
+    EXPECT_TRUE(loader.FillValidKernels(CKConvDirection::Wrw, problem, miopenHalf, false).empty());
+    {
+        bool use_tf32 = true;
+        EXPECT_TRUE(loader
+                        .FillValidKernelsWithTf32Fallback(
+                            CKConvDirection::Wrw, problem, miopenHalf, use_tf32)
+                        .empty());
+        EXPECT_FALSE(use_tf32) << "use_tf32 should become false when no kernels found";
+    }
+    {
+        bool use_tf32 = false;
+        EXPECT_TRUE(loader
+                        .FillValidKernelsWithTf32Fallback(
+                            CKConvDirection::Wrw, problem, miopenHalf, use_tf32)
+                        .empty());
+        EXPECT_FALSE(use_tf32) << "use_tf32 should remain false";
+    }
+    EXPECT_FALSE(loader.IsApplicable(CKConvDirection::Wrw, problem, miopenHalf, false));
     EXPECT_FALSE(
-        loader.is_args_supported(CKConvDirection::Wrw, problem, "dummy_kernel", miopenHalf, false));
-    EXPECT_EQ(loader.get_workspace_size(CKConvDirection::Wrw, problem, miopenHalf), 0u);
-    EXPECT_EQ(loader.get_solution(CKConvDirection::Wrw, ctx, problem, "dummy", false).status,
+        loader.IsArgsSupported(CKConvDirection::Wrw, problem, "dummy_kernel", miopenHalf, false));
+    EXPECT_EQ(loader.GetWorkspaceSize(CKConvDirection::Wrw, problem, miopenHalf), 0u);
+    EXPECT_EQ(loader.GetSolution(CKConvDirection::Wrw, ctx, problem, "dummy", false).status,
               miopenStatusInternalError);
+}
+
+TEST(CPU_CKGroupedConvLoader_NONE, IsDeterministicSplitKValid)
+{
+    // Non-deterministic mode: always valid regardless of split_k
+    EXPECT_TRUE(IsDeterministicSplitKValid("Kernel+4", false));
+    EXPECT_TRUE(IsDeterministicSplitKValid("Kernel+1", false));
+    EXPECT_TRUE(IsDeterministicSplitKValid("Kernel", false));
+
+    // Deterministic mode with split_k == 1 or no split_k: valid
+    EXPECT_TRUE(IsDeterministicSplitKValid("Kernel+1", true));
+    EXPECT_TRUE(IsDeterministicSplitKValid("Kernel", true));
+
+    // Deterministic mode with split_k > 1: invalid
+    EXPECT_FALSE(IsDeterministicSplitKValid("Kernel+4", true));
+    EXPECT_FALSE(IsDeterministicSplitKValid("Kernel+2", true));
+
+    // Deterministic mode with parse failures: invalid
+    EXPECT_FALSE(IsDeterministicSplitKValid("Kernel+abc", true));
+    EXPECT_FALSE(IsDeterministicSplitKValid("Kernel+", true));
 }

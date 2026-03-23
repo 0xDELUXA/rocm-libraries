@@ -91,11 +91,11 @@ bool PerformanceConfigHipImplicitGemmGroupWrwXdlops::ModelApplyToken(
 
             const auto& loader = CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
             bool valid_split_k =
-                loader.IsLoaded() && loader.is_args_supported(CKConvDirection::Wrw,
-                                                              problem,
-                                                              kernel_id,
-                                                              problem.GetInDataType(),
-                                                              problem.UseTF32());
+                loader.IsLoaded() && loader.IsArgsSupported(CKConvDirection::Wrw,
+                                                            problem,
+                                                            kernel_id,
+                                                            problem.GetInDataType(),
+                                                            problem.UseTF32());
 
             if(valid_split_k)
                 return true;
@@ -188,8 +188,8 @@ bool PerformanceConfigHipImplicitGemmGroupWrwXdlops::RunParameterPredictionModel
     auto data_type = problem.GetInDataType();
     use_tf32       = (data_type == miopenFloat && problem.UseTF32());
 
-    valid_kernels = loader.fill_valid_kernels_with_tf32_fallback(
-        CKConvDirection::Wrw, problem, data_type, use_tf32);
+    valid_kernels =
+        loader.FillValidKernelsWithTf32Fallback(CKConvDirection::Wrw, problem, data_type, use_tf32);
     if(valid_kernels.empty())
         return false;
 
@@ -344,8 +344,8 @@ void PerformanceConfigHipImplicitGemmGroupWrwXdlops::HeuristicInit(
     auto data_type = problem.GetInDataType();
     use_tf32       = (data_type == miopenFloat && problem.UseTF32());
 
-    valid_kernels = loader.fill_valid_kernels_with_tf32_fallback(
-        CKConvDirection::Wrw, problem, data_type, use_tf32);
+    valid_kernels =
+        loader.FillValidKernelsWithTf32Fallback(CKConvDirection::Wrw, problem, data_type, use_tf32);
 
     if(!valid_kernels.empty())
     {
@@ -372,7 +372,7 @@ bool PerformanceConfigHipImplicitGemmGroupWrwXdlops::SetNextValue(const ProblemD
         auto data_type = problem.GetInDataType();
         use_tf32       = (data_type == miopenFloat && problem.UseTF32());
 
-        valid_kernels = loader.fill_valid_kernels_with_tf32_fallback(
+        valid_kernels = loader.FillValidKernelsWithTf32Fallback(
             CKConvDirection::Wrw, problem, data_type, use_tf32);
 
         assert(!valid_kernels.empty());
@@ -431,7 +431,7 @@ bool PerformanceConfigHipImplicitGemmGroupWrwXdlops::IsValid(
     if(!loader.IsLoaded())
         return false;
 
-    return loader.is_args_supported(
+    return loader.IsArgsSupported(
         CKConvDirection::Wrw, problem, kernel_id, problem.GetInDataType(), problem.UseTF32());
 }
 
@@ -465,7 +465,7 @@ ConvHipImplicitGemmGroupWrwXdlops::GetCKMaxWorkspaceSize(const ProblemDescriptio
     if(!loader.IsLoaded())
         return 0;
 
-    return loader.get_workspace_size(CKConvDirection::Wrw, problem, problem.GetInDataType());
+    return loader.GetWorkspaceSize(CKConvDirection::Wrw, problem, problem.GetInDataType());
 }
 
 size_t ConvHipImplicitGemmGroupWrwXdlops::GetWorkspaceSize(const ExecutionContext&,
@@ -507,7 +507,7 @@ bool ConvHipImplicitGemmGroupWrwXdlops::IsApplicable(
     if(!loader.IsLoaded())
         return false;
 
-    return loader.is_applicable(
+    return loader.IsApplicable(
         CKConvDirection::Wrw, problem, problem.GetInDataType(), problem.UseTF32());
 }
 
@@ -520,7 +520,7 @@ ConvSolution ConvHipImplicitGemmGroupWrwXdlops::GetSolution(
     if(!loader.IsLoaded())
         return {};
 
-    return loader.get_solution(
+    return loader.GetSolution(
         CKConvDirection::Wrw, ctx, problem, config.kernel_id, config.UseTF32());
 }
 

@@ -160,8 +160,8 @@ bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::RunParameterPredictionModel
     auto data_type = problem.GetInDataType();
     bool try_tf32  = (data_type == miopenFloat) && problem.UseTF32();
 
-    valid_kernels = loader.fill_valid_kernels_with_tf32_fallback(
-        CKConvDirection::Fwd, problem, data_type, try_tf32);
+    valid_kernels =
+        loader.FillValidKernelsWithTf32Fallback(CKConvDirection::Fwd, problem, data_type, try_tf32);
 
     static const std::string& arch = ctx.GetStream().GetDeviceName();
     if(arch == "gfx90a")
@@ -317,8 +317,8 @@ void PerformanceConfigHipImplicitGemmGroupFwdXdlops::HeuristicInit(
     auto data_type = problem.GetInDataType();
     use_tf32       = (data_type == miopenFloat) && problem.UseTF32();
 
-    valid_kernels = loader.fill_valid_kernels_with_tf32_fallback(
-        CKConvDirection::Fwd, problem, data_type, use_tf32);
+    valid_kernels =
+        loader.FillValidKernelsWithTf32Fallback(CKConvDirection::Fwd, problem, data_type, use_tf32);
 
     if(!valid_kernels.empty())
     {
@@ -363,7 +363,7 @@ bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::IsValid(
         return false;
 
     auto data_type = problem.GetInDataType();
-    return loader.is_args_supported(CKConvDirection::Fwd, problem, kernel_id, data_type, use_tf32);
+    return loader.IsArgsSupported(CKConvDirection::Fwd, problem, kernel_id, data_type, use_tf32);
 }
 
 bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::operator==(
@@ -435,10 +435,10 @@ bool ConvHipImplicitGemmGroupFwdXdlops::IsApplicable(const ExecutionContext& ctx
     auto data_type = problem.GetInDataType();
     bool try_tf32  = (data_type == miopenFloat) && problem.UseTF32();
 
-    if(try_tf32 && loader.is_applicable(CKConvDirection::Fwd, problem, data_type, true))
+    if(try_tf32 && loader.IsApplicable(CKConvDirection::Fwd, problem, data_type, true))
         return true;
 
-    return loader.is_applicable(CKConvDirection::Fwd, problem, data_type, false);
+    return loader.IsApplicable(CKConvDirection::Fwd, problem, data_type, false);
 }
 
 ConvSolution ConvHipImplicitGemmGroupFwdXdlops::GetSolution(
@@ -450,7 +450,7 @@ ConvSolution ConvHipImplicitGemmGroupFwdXdlops::GetSolution(
     if(!loader.IsLoaded())
         return {};
 
-    return loader.get_solution(
+    return loader.GetSolution(
         CKConvDirection::Fwd, ctx, problem, config.kernel_id, config.UseTF32());
 }
 

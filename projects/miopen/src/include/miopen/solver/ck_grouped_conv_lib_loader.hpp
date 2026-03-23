@@ -63,41 +63,40 @@ public:
 
     // -- Direction-parameterized wrappers -------------------------------------
     MIOPEN_INTERNALS_EXPORT std::vector<std::string>
-    fill_valid_kernels(CKConvDirection dir,
-                       const miopen::conv::ProblemDescription& problem,
-                       miopenDataType_t dtype,
-                       bool use_tf32) const;
+    FillValidKernels(CKConvDirection dir,
+                     const miopen::conv::ProblemDescription& problem,
+                     miopenDataType_t dtype,
+                     bool use_tf32) const;
 
     /// Try tf32 first (if use_tf32 is true), then fall back to non-tf32.
     /// Updates use_tf32 to reflect whether tf32 was actually used.
     MIOPEN_INTERNALS_EXPORT std::vector<std::string>
-    fill_valid_kernels_with_tf32_fallback(CKConvDirection dir,
-                                          const miopen::conv::ProblemDescription& problem,
-                                          miopenDataType_t dtype,
-                                          bool& use_tf32) const;
+    FillValidKernelsWithTf32Fallback(CKConvDirection dir,
+                                     const miopen::conv::ProblemDescription& problem,
+                                     miopenDataType_t dtype,
+                                     bool& use_tf32) const;
 
-    MIOPEN_INTERNALS_EXPORT bool is_applicable(CKConvDirection dir,
-                                               const miopen::conv::ProblemDescription& problem,
-                                               miopenDataType_t dtype,
-                                               bool use_tf32) const;
+    MIOPEN_INTERNALS_EXPORT bool IsApplicable(CKConvDirection dir,
+                                              const miopen::conv::ProblemDescription& problem,
+                                              miopenDataType_t dtype,
+                                              bool use_tf32) const;
 
-    MIOPEN_INTERNALS_EXPORT bool is_args_supported(CKConvDirection dir,
-                                                   const miopen::conv::ProblemDescription& problem,
-                                                   const std::string& kernel_id,
-                                                   miopenDataType_t dtype,
-                                                   bool use_tf32) const;
+    MIOPEN_INTERNALS_EXPORT bool IsArgsSupported(CKConvDirection dir,
+                                                 const miopen::conv::ProblemDescription& problem,
+                                                 const std::string& kernel_id,
+                                                 miopenDataType_t dtype,
+                                                 bool use_tf32) const;
 
-    MIOPEN_INTERNALS_EXPORT size_t
-    get_workspace_size(CKConvDirection dir,
-                       const miopen::conv::ProblemDescription& problem,
-                       miopenDataType_t dtype) const;
+    MIOPEN_INTERNALS_EXPORT size_t GetWorkspaceSize(CKConvDirection dir,
+                                                    const miopen::conv::ProblemDescription& problem,
+                                                    miopenDataType_t dtype) const;
 
     MIOPEN_INTERNALS_EXPORT ConvSolution
-    get_solution(CKConvDirection dir,
-                 const ExecutionContext& ctx,
-                 const miopen::conv::ProblemDescription& problem,
-                 const std::string& kernel_id,
-                 bool use_tf32) const;
+    GetSolution(CKConvDirection dir,
+                const ExecutionContext& ctx,
+                const miopen::conv::ProblemDescription& problem,
+                const std::string& kernel_id,
+                bool use_tf32) const;
 
     ~CKGroupedConvLibLoader();
 
