@@ -97,7 +97,12 @@ TEST_P(accuracy_test, vs_fftw)
           || (params.is_real() && params.length[0] == 378 && params.length[1] == 42
               && params.nbatch == 66000 && params.placement == fft_placement_inplace);
     if(system_memory::singleton().verbose_mem_management)
+    {
         last_cpu_fft_data = last_cpu_fft_cache();
+        fftw_compare      = false;
+    }
+    else
+        fftw_compare = true;
 
     params.validate();
 

@@ -761,11 +761,11 @@ inline void fft_vs_reference_impl(Tparams& params, bool round_trip)
     // Check cache first - nbatch is a >= comparison because we compute
     // the largest batch size and cache it.  Smaller batch runs can
     // compare against the larger data.
-    std::vector<hostbuf>                 cpu_input;
-    std::vector<hostbuf>                 cpu_output;
-    std::shared_future<void>             convert_cpu_output_precision;
-    std::shared_future<void>             convert_cpu_input_precision;
-    bool                                 run_fftw = true;
+    std::vector<hostbuf>     cpu_input;
+    std::vector<hostbuf>     cpu_output;
+    std::shared_future<void> convert_cpu_output_precision;
+    std::shared_future<void> convert_cpu_input_precision;
+    bool                     run_fftw = !system_memory::singleton().verbose_mem_management;
     std::unique_ptr<StoreCPUDataToCache> store_to_cache;
     if(fftw_compare && last_cpu_fft_data.length == params.length
        && last_cpu_fft_data.transform_type == params.transform_type
