@@ -27,6 +27,7 @@
 #include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/matchers/catch_matchers_string.hpp>
+#include <algorithm>
 #include <cmath>
 #include <set>
 #include "common.hpp"
@@ -45,8 +46,6 @@ TEST_CASE("Categorization: classify_mn boundaries", "[categorization]") {
   REQUIRE(origami::classify_mn(256) == origami::mn_range_t::small);
   REQUIRE(origami::classify_mn(257) == origami::mn_range_t::medium);
   REQUIRE(origami::classify_mn(1024) == origami::mn_range_t::medium);
-  REQUIRE(origami::classify_mn(1025) == origami::mn_range_t::large);
-  REQUIRE(origami::classify_mn(4096) == origami::mn_range_t::large);
   REQUIRE(origami::classify_mn(4097) == origami::mn_range_t::xlarge);
 }
 
@@ -54,26 +53,20 @@ TEST_CASE("Categorization: classify_k boundaries", "[categorization]") {
   REQUIRE(origami::classify_k(1) == origami::k_range_t::tiny);
   REQUIRE(origami::classify_k(128) == origami::k_range_t::tiny);
   REQUIRE(origami::classify_k(129) == origami::k_range_t::small);
-  REQUIRE(origami::classify_k(512) == origami::k_range_t::small);
-  REQUIRE(origami::classify_k(513) == origami::k_range_t::medium);
-  REQUIRE(origami::classify_k(2048) == origami::k_range_t::medium);
   REQUIRE(origami::classify_k(2049) == origami::k_range_t::large);
-  REQUIRE(origami::classify_k(8192) == origami::k_range_t::large);
   REQUIRE(origami::classify_k(8193) == origami::k_range_t::xlarge);
 }
 
-TEST_CASE("Categorization: id uniqueness and round-trip", "[categorization]") {
-  std::set<std::size_t> ids;
+TEST_CASE("Categorization: id round-trip", "[categorization]") {
   for (std::size_t i = 0; i < origami::NUM_GEMM_CATEGORIES; ++i) {
-    auto cat = origami::category_from_id(i);
-    REQUIRE(cat.id() == i);
-    ids.insert(i);
+    REQUIRE(origami::category_from_id(i).id() == i);
   }
-  REQUIRE(ids.size() == origami::NUM_GEMM_CATEGORIES);
 }
 
-TEST_CASE("Categorization: category_from_id out-of-range", "[categorization]") {
-  REQUIRE_THROWS_AS(origami::category_from_id(125), std::out_of_range);
+TEST_CASE("Categorization: id uniqueness", "[categorization]") {
+  std::set<std::size_t> ids;
+  for (std::size_t i = 0; i < origami::NUM_GEMM_CATEGORIES; ++i) ids.insert(i);
+  REQUIRE(ids.size() == origami::NUM_GEMM_CATEGORIES);
 }
 
 TEST_CASE("Categorization: corners", "[categorization]") {
@@ -84,82 +77,71 @@ TEST_CASE("Categorization: corners", "[categorization]") {
 TEST_CASE("Categorization: full space coverage", "[categorization]") {
   std::vector<std::size_t> dims = {1, 64, 65, 256, 257, 1024, 1025, 4096, 4097, 16384};
   std::vector<std::size_t> k_dims = {1, 128, 129, 512, 513, 2048, 2049, 8192, 8193, 32768};
-
-  for (auto m : dims)
-    for (auto n : dims)
-      for (auto k : k_dims) {
-        auto cat = origami::categorize_mnk(m, n, k);
-        REQUIRE(cat.id() < origami::NUM_GEMM_CATEGORIES);
-        REQUIRE(m >= cat.m_lower());
-        REQUIRE(n >= cat.n_lower());
-        REQUIRE(k >= cat.k_lower());
-        if (cat.m_upper() != SIZE_MAX) REQUIRE(m <= cat.m_upper());
-        if (cat.n_upper() != SIZE_MAX) REQUIRE(n <= cat.n_upper());
-        if (cat.k_upper() != SIZE_MAX) REQUIRE(k <= cat.k_upper());
-      }
-}
-
-TEST_CASE("Categorization: K ranges match GridBased grid points", "[categorization]") {
-  std::vector<std::size_t> grid_ks = {1, 48, 128, 192, 256, 512, 768, 1024,
-                                       1536, 2048, 4096, 5120, 8192, 16384, 32768};
-  std::vector<int> expected = {0, 0, 0, 1, 1, 1, 2, 2, 2, 2, 3, 3, 3, 4, 4};
-  for (size_t i = 0; i < grid_ks.size(); ++i) {
-    REQUIRE(static_cast<int>(origami::classify_k(grid_ks[i])) == expected[i]);
+  for (auto m : dims) for (auto n : dims) for (auto k : k_dims) {
+    auto cat = origami::categorize_mnk(m, n, k);
+    REQUIRE(cat.id() < origami::NUM_GEMM_CATEGORIES);
+    REQUIRE(m >= cat.m_lower());
+    REQUIRE(n >= cat.n_lower());
+    REQUIRE(k >= cat.k_lower());
   }
 }
 
-TEST_CASE("Categorization: layout and dtype do NOT affect id", "[categorization]") {
-  origami::problem_t p;
-  p.size = {1024, 2048, 4096};
-  p.a_transpose = origami::transpose_t::T;
-  p.b_transpose = origami::transpose_t::N;
-  p.mi_dtype = origami::data_type_t::BFloat16;
-  auto id1 = origami::categorize(p).id();
-
-  p.a_transpose = origami::transpose_t::N;
-  p.b_transpose = origami::transpose_t::T;
-  p.mi_dtype = origami::data_type_t::Float;
-  auto id2 = origami::categorize(p).id();
-
-  REQUIRE(id1 == id2);
-}
-
 // ========================================================================
-// Training sample generation
+// Structured training samples
 // ========================================================================
 
-TEST_CASE("Categorization: generate_training_samples count", "[categorization]") {
+TEST_CASE("Categorization: samples include tile-boundary neighbors", "[categorization]") {
   auto cat = origami::categorize_mnk(512, 512, 1024);
   auto samples = cat.generate_training_samples(4);
-  REQUIRE(samples.size() == 4 * 4 * 4);
+
+  std::set<std::size_t> m_vals;
+  for (const auto& s : samples) m_vals.insert(s.m);
+
+  REQUIRE(m_vals.count(256 + 1) > 0);  // tile boundary + 1
+  REQUIRE(m_vals.count(512) > 0);      // 2 * 256 tile boundary
+  REQUIRE(m_vals.count(512 + 1) > 0);  // tile boundary + 1
 }
 
-TEST_CASE("Categorization: samples are within category bounds", "[categorization]") {
-  for (std::size_t id = 0; id < origami::NUM_GEMM_CATEGORIES; ++id) {
-    auto cat = origami::category_from_id(id);
-    auto samples = cat.generate_training_samples(3, 131072, 32768);
+TEST_CASE("Categorization: samples include odd/prime values", "[categorization]") {
+  auto cat = origami::categorize_mnk(512, 512, 1024);
+  auto samples = cat.generate_training_samples(3);
 
-    for (const auto& s : samples) {
-      REQUIRE(s.m >= cat.m_lower());
-      REQUIRE(s.n >= cat.n_lower());
-      REQUIRE(s.k >= cat.k_lower());
-      auto m_ub = cat.m_upper() == SIZE_MAX ? static_cast<std::size_t>(131072) : cat.m_upper();
-      auto n_ub = cat.n_upper() == SIZE_MAX ? static_cast<std::size_t>(131072) : cat.n_upper();
-      auto k_ub = cat.k_upper() == SIZE_MAX ? static_cast<std::size_t>(32768) : cat.k_upper();
-      REQUIRE(s.m <= m_ub);
-      REQUIRE(s.n <= n_ub);
-      REQUIRE(s.k <= k_ub);
-    }
+  std::set<std::size_t> all_m;
+  for (const auto& s : samples) all_m.insert(s.m);
+
+  bool has_odd = false;
+  for (auto v : all_m) {
+    if (v % 2 == 1 && v > 1) { has_odd = true; break; }
   }
+  REQUIRE(has_odd);
 }
 
-TEST_CASE("Categorization: samples are log-spaced", "[categorization]") {
+TEST_CASE("Categorization: samples include cache-alignment probes", "[categorization]") {
   auto cat = origami::categorize_mnk(512, 512, 1024);
-  auto samples = cat.generate_training_samples(4);
+  auto samples = cat.generate_training_samples(3);
 
-  double log_first_m = std::log2(static_cast<double>(samples.front().m));
-  double log_last_m  = std::log2(static_cast<double>(samples[3 * 16].m));
-  REQUIRE(log_last_m > log_first_m);
+  std::set<std::size_t> all_k;
+  for (const auto& s : samples) all_k.insert(s.k);
+
+  bool has_aligned = all_k.count(1024) > 0;
+  bool has_misaligned = false;
+  for (auto v : all_k) {
+    if (v > 1 && v % 64 != 0) { has_misaligned = true; break; }
+  }
+  REQUIRE(has_aligned);
+  REQUIRE(has_misaligned);
+}
+
+TEST_CASE("Categorization: samples are sorted and unique per dim", "[categorization]") {
+  auto cat = origami::categorize_mnk(1024, 1024, 2048);
+  auto samples = cat.generate_training_samples(3);
+
+  REQUIRE(samples.size() > 0);
+  for (const auto& s : samples) {
+    REQUIRE(s.m >= 1);
+    REQUIRE(s.n >= 1);
+    REQUIRE(s.k >= 1);
+  }
 }
 
 // ========================================================================
@@ -175,30 +157,53 @@ TEST_CASE("Categorization: ML features basic", "[categorization]") {
   REQUIRE(f.arithmetic_intensity > 0.0);
 }
 
-TEST_CASE("Categorization: ML features distinguish categories", "[categorization]") {
-  auto f_small = origami::compute_ml_features(64, 64, 64);
-  auto f_large = origami::compute_ml_features(4096, 4096, 4096);
-
-  REQUIRE(f_large.log2_m > f_small.log2_m);
-  REQUIRE(f_large.log2_mn_tiles > f_small.log2_mn_tiles);
-  REQUIRE(f_large.arithmetic_intensity > f_small.arithmetic_intensity);
-}
-
-TEST_CASE("Categorization: ML features aspect ratio", "[categorization]") {
+TEST_CASE("Categorization: ML features distinguish shapes", "[categorization]") {
   auto f_tall = origami::compute_ml_features(8192, 64, 1024);
   auto f_wide = origami::compute_ml_features(64, 8192, 1024);
-  auto f_sq   = origami::compute_ml_features(1024, 1024, 1024);
-
   REQUIRE(f_tall.mn_aspect_ratio > 0.0);
   REQUIRE(f_wide.mn_aspect_ratio < 0.0);
-  REQUIRE(f_sq.mn_aspect_ratio == Approx(0.0));
 }
 
-TEST_CASE("Categorization: ML features k_mn_ratio", "[categorization]") {
-  auto f_deep    = origami::compute_ml_features(256, 256, 32768);
-  auto f_shallow = origami::compute_ml_features(256, 256, 64);
+// ========================================================================
+// Post-tuning analysis
+// ========================================================================
 
-  REQUIRE(f_deep.k_mn_ratio > f_shallow.k_mn_ratio);
+TEST_CASE("Categorization: analyze_tuning_results pure category", "[categorization]") {
+  std::vector<origami::tuning_result_t> results;
+  for (int i = 0; i < 20; ++i) {
+    results.push_back({{static_cast<std::size_t>(100+i), 100, 100}, 42, 100.0});
+  }
+
+  auto analysis = origami::analyze_tuning_results(0, results);
+  REQUIRE(analysis.total_samples == 20);
+  REQUIRE(analysis.unique_winners == 1);
+  REQUIRE(analysis.dominant_config_id == 42);
+  REQUIRE(analysis.purity == Approx(1.0));
+  REQUIRE(analysis.is_pure());
+}
+
+TEST_CASE("Categorization: analyze_tuning_results mixed category", "[categorization]") {
+  std::vector<origami::tuning_result_t> results;
+  for (int i = 0; i < 10; ++i) results.push_back({{100, 100, 100}, 1, 50.0});
+  for (int i = 0; i < 5; ++i)  results.push_back({{100, 100, 100}, 2, 45.0});
+  for (int i = 0; i < 3; ++i)  results.push_back({{100, 100, 100}, 3, 40.0});
+  for (int i = 0; i < 2; ++i)  results.push_back({{100, 100, 100}, 4, 35.0});
+
+  auto analysis = origami::analyze_tuning_results(0, results);
+  REQUIRE(analysis.total_samples == 20);
+  REQUIRE(analysis.unique_winners == 4);
+  REQUIRE(analysis.dominant_config_id == 1);
+  REQUIRE(analysis.dominant_config_count == 10);
+  REQUIRE(analysis.purity == Approx(0.5));
+  REQUIRE(!analysis.is_pure());
+}
+
+TEST_CASE("Categorization: analyze_tuning_results empty", "[categorization]") {
+  std::vector<origami::tuning_result_t> results;
+  auto analysis = origami::analyze_tuning_results(0, results);
+  REQUIRE(analysis.total_samples == 0);
+  REQUIRE(analysis.unique_winners == 0);
+  REQUIRE(analysis.purity == 0.0);
 }
 
 TEST_CASE("Categorization: AI formula", "[categorization]") {

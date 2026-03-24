@@ -378,6 +378,26 @@ NB_MODULE(origami, m) {
         nanobind::arg("bytes_per_element") = 2.0,
         "Compute ML feature vector from (M, N, K)");
 
+  nanobind::class_<origami::tuning_result_t>(m, "tuning_result_t")
+      .def(nanobind::init<>())
+      .def_rw("size", &origami::tuning_result_t::size)
+      .def_rw("best_config_id", &origami::tuning_result_t::best_config_id)
+      .def_rw("best_gflops", &origami::tuning_result_t::best_gflops);
+
+  nanobind::class_<origami::category_analysis_t>(m, "category_analysis_t")
+      .def(nanobind::init<>())
+      .def_rw("category_id", &origami::category_analysis_t::category_id)
+      .def_rw("total_samples", &origami::category_analysis_t::total_samples)
+      .def_rw("unique_winners", &origami::category_analysis_t::unique_winners)
+      .def_rw("dominant_config_id", &origami::category_analysis_t::dominant_config_id)
+      .def_rw("dominant_config_count", &origami::category_analysis_t::dominant_config_count)
+      .def_rw("purity", &origami::category_analysis_t::purity)
+      .def("is_pure", &origami::category_analysis_t::is_pure);
+
+  m.def("analyze_tuning_results",
+        &origami::analyze_tuning_results,
+        "Analyze tuning results for a category");
+
   m.def("categorize",
         &origami::categorize,
         "Categorize a GEMM problem by (M, N, K, batch)");

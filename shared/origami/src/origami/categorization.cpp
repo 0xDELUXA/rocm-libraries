@@ -3,9 +3,11 @@
 
 #include "origami/categorization.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 
 namespace origami {
 
@@ -42,12 +44,9 @@ gemm_category_t category_from_id(std::size_t id) {
   }
   const auto k_count = static_cast<std::size_t>(k_range_t::count);
   const auto n_count = static_cast<std::size_t>(mn_range_t::count);
-  auto k_idx = id % k_count;
-  auto n_idx = (id / k_count) % n_count;
-  auto m_idx = id / (k_count * n_count);
-  return {static_cast<mn_range_t>(m_idx),
-          static_cast<mn_range_t>(n_idx),
-          static_cast<k_range_t>(k_idx),
+  return {static_cast<mn_range_t>(id / (k_count * n_count)),
+          static_cast<mn_range_t>((id / k_count) % n_count),
+          static_cast<k_range_t>(id % k_count),
           false};
 }
 
@@ -81,14 +80,15 @@ std::size_t gemm_category_t::k_lower() const noexcept { return k_lower_bound(k_r
 std::size_t gemm_category_t::k_upper() const noexcept { return K_RANGE_UPPER_BOUNDS[static_cast<std::size_t>(k_range)]; }
 
 double gemm_category_t::representative_arithmetic_intensity(double bpe) const noexcept {
-  constexpr double CAP = 32768.0;
-  auto gm = [](double lo, double hi) -> double {
-    return std::sqrt(lo * ((hi == static_cast<double>(SIZE_MAX)) ? CAP : hi));
+  constexpr double CAP_MN = 131072.0;
+  constexpr double CAP_K  = 32768.0;
+  auto gm = [](double lo, double hi, double cap) -> double {
+    return std::sqrt(lo * ((hi == static_cast<double>(SIZE_MAX)) ? cap : hi));
   };
   return compute_arithmetic_intensity(
-      gm(static_cast<double>(m_lower()), static_cast<double>(m_upper())),
-      gm(static_cast<double>(n_lower()), static_cast<double>(n_upper())),
-      gm(static_cast<double>(k_lower()), static_cast<double>(k_upper())),
+      gm(static_cast<double>(m_lower()), static_cast<double>(m_upper()), CAP_MN),
+      gm(static_cast<double>(n_lower()), static_cast<double>(n_upper()), CAP_MN),
+      gm(static_cast<double>(k_lower()), static_cast<double>(k_upper()), CAP_K),
       bpe);
 }
 
@@ -96,48 +96,88 @@ double gemm_category_t::representative_arithmetic_intensity(double bpe) const no
 // Training sample generation
 // ============================================================================
 
-static std::vector<std::size_t> log_uniform_samples(std::size_t lo, std::size_t hi,
-                                                    std::size_t count, std::size_t cap) {
-  if (hi == SIZE_MAX) hi = cap;
-  lo = std::max(lo, static_cast<std::size_t>(1));
-  hi = std::max(hi, lo);
+static void add_if_in_range(std::vector<std::size_t>& out,
+                            std::size_t val,
+                            std::size_t lo, std::size_t hi) {
+  if (val >= lo && val <= hi) out.push_back(val);
+}
 
-  double log_lo = std::log2(static_cast<double>(lo));
-  double log_hi = std::log2(static_cast<double>(hi));
+static std::vector<std::size_t> generate_dim_samples(
+    std::size_t lo, std::size_t hi, std::size_t log_count,
+    const std::vector<std::size_t>& tile_sizes) {
 
-  std::vector<std::size_t> samples;
-  samples.reserve(count);
+  std::vector<std::size_t> points;
 
-  if (count == 1) {
-    samples.push_back(static_cast<std::size_t>(std::round(std::sqrt(lo * hi))));
-    return samples;
+  // Layer 1: log-uniform base grid
+  double log_lo = std::log2(std::max(lo, static_cast<std::size_t>(1)));
+  double log_hi = std::log2(std::max(hi, lo));
+
+  for (std::size_t i = 0; i < log_count; ++i) {
+    double t = (log_count == 1) ? 0.5
+             : static_cast<double>(i) / static_cast<double>(log_count - 1);
+    auto val = static_cast<std::size_t>(std::round(std::exp2(log_lo + t * (log_hi - log_lo))));
+    add_if_in_range(points, std::clamp(val, lo, hi), lo, hi);
   }
 
-  for (std::size_t i = 0; i < count; ++i) {
-    double t = static_cast<double>(i) / static_cast<double>(count - 1);
-    double log_val = log_lo + t * (log_hi - log_lo);
-    auto val = static_cast<std::size_t>(std::round(std::exp2(log_val)));
-    val = std::max(val, lo);
-    val = std::min(val, hi);
-    samples.push_back(val);
+  // Layer 2: tile-boundary neighbors (MT*k, MT*k ± 1)
+  for (auto mt : tile_sizes) {
+    for (std::size_t k = 1; k <= hi / mt + 1; ++k) {
+      std::size_t boundary = mt * k;
+      if (boundary > hi + 1) break;
+      add_if_in_range(points, boundary, lo, hi);
+      if (boundary > 0) add_if_in_range(points, boundary - 1, lo, hi);
+      add_if_in_range(points, boundary + 1, lo, hi);
+    }
   }
 
-  return samples;
+  // Layer 3: odd / prime / non-power-of-2 values
+  constexpr std::size_t primes[] = {3, 7, 13, 17, 31, 37, 41, 47, 53, 61, 67, 71, 73, 79, 89, 97};
+  for (auto p : primes) {
+    add_if_in_range(points, p, lo, hi);
+    // also p * common multipliers
+    for (auto mul : {10u, 100u, 1000u}) {
+      add_if_in_range(points, static_cast<std::size_t>(p) * mul, lo, hi);
+    }
+  }
+
+  // Layer 4: cache-line alignment probes (128B = 1024 bits)
+  // For BF16 (16 bits): 1024/16 = 64 elements per cache line
+  // For FP8 (8 bits): 1024/8 = 128 elements per cache line
+  constexpr std::size_t cache_aligned[] = {64, 128, 192, 320, 384, 448, 576, 640, 768, 896};
+  for (auto ca : cache_aligned) {
+    add_if_in_range(points, ca, lo, hi);
+    add_if_in_range(points, ca + 1, lo, hi);  // misaligned neighbor
+  }
+
+  // Deduplicate and sort
+  std::sort(points.begin(), points.end());
+  points.erase(std::unique(points.begin(), points.end()), points.end());
+
+  return points;
 }
 
 std::vector<dim3_t> gemm_category_t::generate_training_samples(
     std::size_t samples_per_dim, std::size_t cap_mn, std::size_t cap_k) const {
 
-  auto m_samples = log_uniform_samples(m_lower(), m_upper(), samples_per_dim, cap_mn);
-  auto n_samples = log_uniform_samples(n_lower(), n_upper(), samples_per_dim, cap_mn);
-  auto k_samples = log_uniform_samples(k_lower(), k_upper(), samples_per_dim, cap_k);
+  std::size_t m_hi = (m_upper() == SIZE_MAX) ? cap_mn : m_upper();
+  std::size_t n_hi = (n_upper() == SIZE_MAX) ? cap_mn : n_upper();
+  std::size_t k_hi = (k_upper() == SIZE_MAX) ? cap_k  : k_upper();
+
+  // Tile sizes from origami heuristics (MT_M, MT_N candidates)
+  std::vector<std::size_t> mn_tiles = {32, 64, 96, 128, 160, 192, 208, 224, 256};
+  // K tile sizes (MT_K candidates)
+  std::vector<std::size_t> k_tiles  = {16, 32, 64, 128, 256, 512};
+
+  auto m_points = generate_dim_samples(m_lower(), m_hi, samples_per_dim, mn_tiles);
+  auto n_points = generate_dim_samples(n_lower(), n_hi, samples_per_dim, mn_tiles);
+  auto k_points = generate_dim_samples(k_lower(), k_hi, samples_per_dim, k_tiles);
 
   std::vector<dim3_t> result;
-  result.reserve(m_samples.size() * n_samples.size() * k_samples.size());
+  result.reserve(m_points.size() * n_points.size() * k_points.size());
 
-  for (auto m : m_samples)
-    for (auto n : n_samples)
-      for (auto k : k_samples)
+  for (auto m : m_points)
+    for (auto n : n_points)
+      for (auto k : k_points)
         result.push_back({m, n, k});
 
   return result;
@@ -155,14 +195,54 @@ gemm_ml_features_t compute_ml_features(std::size_t m, std::size_t n, std::size_t
 
   constexpr double MT_MAX = 256.0;
 
-  return {
-      std::log2(dm),
-      std::log2(dn),
-      std::log2(dk),
-      compute_arithmetic_intensity(dm, dn, dk, bytes_per_element),
-      std::log2(dm / dn),
-      std::log2(dk / std::sqrt(dm * dn)),
-      std::log2(dm * dn / (MT_MAX * MT_MAX))};
+  return {std::log2(dm),
+          std::log2(dn),
+          std::log2(dk),
+          compute_arithmetic_intensity(dm, dn, dk, bytes_per_element),
+          std::log2(dm / dn),
+          std::log2(dk / std::sqrt(dm * dn)),
+          std::log2(dm * dn / (MT_MAX * MT_MAX))};
+}
+
+// ============================================================================
+// Post-tuning analysis
+// ============================================================================
+
+category_analysis_t analyze_tuning_results(std::size_t category_id,
+                                           const std::vector<tuning_result_t>& results) {
+  category_analysis_t analysis{};
+  analysis.category_id   = category_id;
+  analysis.total_samples = results.size();
+
+  if (results.empty()) {
+    analysis.unique_winners       = 0;
+    analysis.dominant_config_id   = 0;
+    analysis.dominant_config_count = 0;
+    analysis.purity               = 0.0;
+    return analysis;
+  }
+
+  std::unordered_map<std::size_t, std::size_t> winner_counts;
+  for (const auto& r : results) {
+    winner_counts[r.best_config_id]++;
+  }
+
+  analysis.unique_winners = winner_counts.size();
+
+  std::size_t max_count = 0;
+  std::size_t max_id    = 0;
+  for (const auto& [config_id, count] : winner_counts) {
+    if (count > max_count) {
+      max_count = count;
+      max_id    = config_id;
+    }
+  }
+
+  analysis.dominant_config_id    = max_id;
+  analysis.dominant_config_count = max_count;
+  analysis.purity = static_cast<double>(max_count) / static_cast<double>(results.size());
+
+  return analysis;
 }
 
 // ============================================================================
@@ -179,10 +259,6 @@ std::string gemm_category_t::to_string() const {
          "_K[" + std::to_string(k_lower()) + "-" + fmt(k_upper()) + "]" +
          "_" + (batched ? "batched" : "single");
 }
-
-// ============================================================================
-// Arithmetic intensity
-// ============================================================================
 
 double compute_arithmetic_intensity(double m, double n, double k, double bpe) noexcept {
   double bytes = (m * k + k * n + m * n) * bpe;
