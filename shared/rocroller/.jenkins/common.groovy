@@ -370,8 +370,6 @@ def runPerformanceCommand (platform, project)
 
                 if [ -n "\$CSV_FILE" ] && [ -f "\$CSV_FILE" ]; then
                     DB_LABEL="rocroller_perf_ci_pr${env.CHANGE_ID}"
-                    COMMIT_SHORT=\$(git rev-parse --short HEAD)
-                    MACHINE_NAME=\$(hostname)
 
                     # Try to insert into database, but don't fail if it doesn't work
                     set +e
@@ -384,11 +382,9 @@ def runPerformanceCommand (platform, project)
                         --label \$DB_LABEL \\
                         --csv \$CSV_FILE \\
                         --arch ${platform.gpu} \\
-                        --commit \$COMMIT_SHORT \\
                         --repo github.com/ROCm/rocm-libraries \\
                         --library_size 0 \\
                         --streamk 0 \\
-                        --machine \$MACHINE_NAME \\
                         --comment "testing CI db insertion (PR)" || echo "Warning: Database insertion failed, continuing..."
                     set -e
 
@@ -590,8 +586,6 @@ def runPerformanceCommand (platform, project)
                 if [ -f "\$CSV_FILE" ]; then
                     echo "=== CSV file found at \$CSV_FILE ==="
                     DB_LABEL="rocroller_perf_ci_develop"
-                    COMMIT_SHORT=\$(git rev-parse --short HEAD)
-                    MACHINE_NAME=\$(hostname)
 
                     echo "=== Attempting database insertion with label \$DB_LABEL ==="
                     # Try to insert into database, but don't fail if it doesn't work
@@ -605,12 +599,10 @@ def runPerformanceCommand (platform, project)
                         --label \$DB_LABEL \\
                         --csv \$CSV_FILE \\
                         --arch ${platform.gpu} \\
-                        --commit \$COMMIT_SHORT \\
                         --repo github.com/ROCm/rocm-libraries \\
                         --branch develop \\
                         --library_size 0 \\
                         --streamk 0 \\
-                        --machine \$MACHINE_NAME \\
                         --comment "testing CI db insertion (develop)" || echo "Warning: Database insertion failed, continuing..."
                     set -e
 
