@@ -90,58 +90,51 @@ TEST_CASE("Categorization: full space coverage", "[categorization]") {
 // Structured training samples
 // ========================================================================
 
-TEST_CASE("Categorization: samples include tile-boundary neighbors", "[categorization]") {
+TEST_CASE("Categorization: sample count controlled by max_samples", "[categorization]") {
   auto cat = origami::categorize_mnk(512, 512, 1024);
-  auto samples = cat.generate_training_samples(4);
+  auto s1 = cat.generate_training_samples(8, 1000);
+  auto s2 = cat.generate_training_samples(8, 8000);
 
-  std::set<std::size_t> m_vals;
-  for (const auto& s : samples) m_vals.insert(s.m);
-
-  REQUIRE(m_vals.count(256 + 1) > 0);  // tile boundary + 1
-  REQUIRE(m_vals.count(512) > 0);      // 2 * 256 tile boundary
-  REQUIRE(m_vals.count(512 + 1) > 0);  // tile boundary + 1
+  REQUIRE(s1.size() > 0);
+  REQUIRE(s1.size() <= 1000);
+  REQUIRE(s2.size() > s1.size());
+  REQUIRE(s2.size() <= 8000);
 }
 
-TEST_CASE("Categorization: samples include odd/prime values", "[categorization]") {
-  auto cat = origami::categorize_mnk(512, 512, 1024);
-  auto samples = cat.generate_training_samples(3);
-
-  std::set<std::size_t> all_m;
-  for (const auto& s : samples) all_m.insert(s.m);
-
-  bool has_odd = false;
-  for (auto v : all_m) {
-    if (v % 2 == 1 && v > 1) { has_odd = true; break; }
+TEST_CASE("Categorization: default produces ~1M total", "[categorization]") {
+  size_t total = 0;
+  for (size_t id = 0; id < origami::NUM_GEMM_CATEGORIES; ++id) {
+    total += origami::category_from_id(id).generate_training_samples().size();
   }
-  REQUIRE(has_odd);
+  REQUIRE(total >= 500000);
+  REQUIRE(total <= 2000000);
 }
 
-TEST_CASE("Categorization: samples include cache-alignment probes", "[categorization]") {
+TEST_CASE("Categorization: samples cover category range", "[categorization]") {
   auto cat = origami::categorize_mnk(512, 512, 1024);
-  auto samples = cat.generate_training_samples(3);
+  auto samples = cat.generate_training_samples(8, 2000);
 
-  std::set<std::size_t> all_k;
-  for (const auto& s : samples) all_k.insert(s.k);
-
-  bool has_aligned = all_k.count(1024) > 0;
-  bool has_misaligned = false;
-  for (auto v : all_k) {
-    if (v > 1 && v % 64 != 0) { has_misaligned = true; break; }
-  }
-  REQUIRE(has_aligned);
-  REQUIRE(has_misaligned);
-}
-
-TEST_CASE("Categorization: samples are sorted and unique per dim", "[categorization]") {
-  auto cat = origami::categorize_mnk(1024, 1024, 2048);
-  auto samples = cat.generate_training_samples(3);
-
-  REQUIRE(samples.size() > 0);
+  std::size_t min_m = SIZE_MAX, max_m = 0;
   for (const auto& s : samples) {
-    REQUIRE(s.m >= 1);
-    REQUIRE(s.n >= 1);
-    REQUIRE(s.k >= 1);
+    min_m = std::min(min_m, s.m);
+    max_m = std::max(max_m, s.m);
+    REQUIRE(s.m >= cat.m_lower());
+    REQUIRE(s.n >= cat.n_lower());
+    REQUIRE(s.k >= cat.k_lower());
   }
+  REQUIRE(min_m == cat.m_lower());
+  REQUIRE(max_m == cat.m_upper());
+}
+
+TEST_CASE("Categorization: samples include non-power-of-2", "[categorization]") {
+  auto cat = origami::categorize_mnk(512, 512, 1024);
+  auto samples = cat.generate_training_samples(8, 2000);
+
+  bool has_non_pow2 = false;
+  for (const auto& s : samples) {
+    if (s.m > 1 && (s.m & (s.m - 1)) != 0) { has_non_pow2 = true; break; }
+  }
+  REQUIRE(has_non_pow2);
 }
 
 // ========================================================================

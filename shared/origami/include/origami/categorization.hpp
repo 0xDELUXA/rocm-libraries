@@ -102,31 +102,34 @@ struct gemm_category_t {
   /**
    * @brief Generate structured training samples within this category.
    *
-   * Unlike pure log-uniform sampling, this generates points that
-   * exercise the decision boundaries in origami's latency model:
+   * Produces points that exercise the decision boundaries in
+   * origami's latency model.  Per dimension, generates:
    *
-   *   1. LOG-SPACED BASE GRID: uniform in log2-space (matching
-   *      TensileLite's Ratio distance metric)
+   *   1. LOG-SPACED GRID: samples_per_dim points uniform in
+   *      log2-space (matching TensileLite Ratio distance)
    *
-   *   2. TILE-BOUNDARY NEIGHBORS: for each base point, include
-   *      k*MT ± 1 for common tile sizes {32, 64, 128, 256},
-   *      because work_utilization = M*N*K / (ceil(M/MT)*MT * ...)
-   *      has discontinuities at tile multiples
+   *   2. TILE-BOUNDARY NEIGHBORS: around each log-spaced point,
+   *      nearest k*MT and k*MT ± 1 for tile sizes {32..256}.
+   *      work_utilization has discontinuities at tile multiples.
    *
-   *   3. CACHE-ALIGNMENT PROBES: include values where
-   *      dim * bpe_bits is/isn't a multiple of 1024 (128B cache
-   *      line), because the short-circuit logic in gemm.cpp tests
-   *      K * a_bits % 1024
+   *   3. CACHE-ALIGNMENT PROBES: values where dim*bpe is/isn't
+   *      a multiple of 128B.  gemm.cpp short-circuit tests this.
    *
-   *   4. ODD / PRIME VALUES: non-power-of-2 values that stress
-   *      edge padding and vectorization remainders
+   *   4. ODD / PRIME VALUES: stress edge padding and
+   *      vectorization remainder paths.
+   *
+   * The final sample set is the Cartesian product of per-dimension
+   * points, capped at max_samples.  If the Cartesian product
+   * exceeds max_samples, dimensions are subsampled uniformly.
    *
    * @param samples_per_dim Log-spaced base points per dimension
+   * @param max_samples Maximum total (M,N,K) triples to return
    * @param cap_mn Upper cap for unbounded M/N ranges
    * @param cap_k  Upper cap for unbounded K range
-   * @return Vector of (M, N, K) triples covering decision boundaries
+   * @return Vector of (M, N, K) triples
    */
-  std::vector<dim3_t> generate_training_samples(std::size_t samples_per_dim = 4,
+  std::vector<dim3_t> generate_training_samples(std::size_t samples_per_dim = 8,
+                                                std::size_t max_samples = 8000,
                                                 std::size_t cap_mn = 131072,
                                                 std::size_t cap_k = 32768) const;
 
