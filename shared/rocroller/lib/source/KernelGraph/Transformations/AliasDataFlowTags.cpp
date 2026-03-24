@@ -408,12 +408,110 @@ namespace rocRoller
                 return false;
             }
 
+            std::optional<VariableType> getDataTypeFromOps(KernelGraph const&         kgraph,
+                                                           int                        coordTag,
+                                                           std::vector<Record> const& records)
+            {
+                namespace CG = ControlGraph;
+
+                for(auto const& rec : records)
+                {
+                    auto  op       = kgraph.control.getNode(rec.control);
+                    auto* assignOp = std::get_if<CG::Assign>(&op);
+
+                    if(assignOp)
+                    {
+                        if(assignOp->variableType.has_value()
+                           && assignOp->variableType->dataType != DataType::None
+                           && assignOp->variableType->dataType != DataType::Count)
+                        {
+                            return assignOp->variableType.value();
+                        }
+
+                        auto vt = Expression::resultVariableType(assignOp->expression);
+                        if(vt.dataType != DataType::None && vt.dataType != DataType::Count)
+                        {
+                            return vt;
+                        }
+                    }
+                    else
+                    {
+                        auto dt = CG::getDataType(op);
+                        if(dt != DataType::None && dt != DataType::Count)
+                        {
+                            return VariableType(dt);
+                        }
+                    }
+                }
+
+                return std::nullopt;
+            }
+
+            std::map<int, std::optional<VariableType>>
+                getVariableTypeForCoord(KernelGraph const&                        kgraph,
+                                        std::map<int, std::vector<Record>> const& recordsByCoord)
+            {
+                namespace CT = CoordinateGraph;
+                std::map<int, std::optional<VariableType>> result;
+
+                for(auto const& [coordTag, records] : recordsByCoord)
+                    result[coordTag] = getDataTypeFromOps(kgraph, coordTag, records);
+
+                auto isDataFlowEdge
+                    = [](auto const& edge) { return CT::isEdge<CT::DataFlowEdge>(edge); };
+
+                auto searchDataFlowEdge = [&]<Graph::Direction Dir>(std::optional<VariableType>& vt,
+                                                                    int coordTag) {
+                    for(auto neighbor :
+                        kgraph.coordinates.getConnectedNodeIndices<Dir>(coordTag, isDataFlowEdge))
+                    {
+                        auto it = result.find(neighbor);
+                        if(it != result.end() && it->second.has_value())
+                        {
+                            vt = it->second.value();
+                            return true;
+                        }
+                    }
+                    return false;
+                };
+
+                bool changed = true;
+                while(changed)
+                {
+                    changed = false;
+                    for(auto& [coordTag, vt] : result)
+                    {
+                        if(vt.has_value())
+                            continue;
+
+                        if(kgraph.coordinates.getElementType(coordTag) != Graph::ElementType::Node)
+                            continue;
+
+                        changed
+                            |= searchDataFlowEdge.template operator()<Graph::Direction::Upstream>(
+                                vt, coordTag);
+                        if(vt.has_value())
+                            continue;
+
+                        changed
+                            |= searchDataFlowEdge.template operator()<Graph::Direction::Downstream>(
+                                vt, coordTag);
+                    }
+                }
+                return result;
+            }
+
             std::map<TagExtent::CategoryKey, std::list<TagExtent>>
                 getGroupedTagExtents(KernelGraph const& kgraph)
             {
                 std::map<TagExtent::CategoryKey, std::list<TagExtent>> groupedExtents;
 
-                ControlFlowRWTracer tracer(kgraph);
+                ControlFlowRWTracer                tracer(kgraph);
+                auto                               records = tracer.coordinatesReadWrite();
+                std::map<int, std::vector<Record>> recordsByCoord;
+                for(auto const& rec : records)
+                    recordsByCoord[rec.coordinate].push_back(rec);
+                auto const coordVariableTypes = getVariableTypeForCoord(kgraph, recordsByCoord);
 
                 for(auto mt : kgraph.coordinates.getNodes<CoordinateGraph::MacroTile>())
                 {
@@ -448,10 +546,18 @@ namespace rocRoller
 
                     auto extent = getExtent(kgraph, records);
 
-                    if(!extent.empty() && extent.dataType != DataType::None
-                       && extent.layoutType != LayoutType::MATRIX_ACCUMULATOR)
+                    if(!extent.empty() && extent.layoutType != LayoutType::MATRIX_ACCUMULATOR)
                     {
-                        groupedExtents[extent.typeKey()].push_back(std::move(extent));
+                        if(extent.dataType == DataType::None
+                           && coordVariableTypes.contains(extent.baseTag))
+                        {
+                            auto const& variableType = coordVariableTypes.at(extent.baseTag);
+                            if(variableType.has_value())
+                                extent.dataType = variableType->dataType;
+                        }
+
+                        if(extent.dataType != DataType::None)
+                            groupedExtents[extent.typeKey()].push_back(std::move(extent));
                     }
                 }
                 return groupedExtents;
