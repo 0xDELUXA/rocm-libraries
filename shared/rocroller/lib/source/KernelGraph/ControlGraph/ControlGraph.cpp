@@ -13,6 +13,7 @@ namespace rocRoller::KernelGraph::ControlGraph
 {
     void bitsetSet(std::vector<uint64_t>& bs, int id)
     {
+        AssertFatal(id > 0, "Invalid id ", ShowValue(id));
         size_t word = static_cast<size_t>(id) >> 6;
         if(word >= bs.size())
             bs.resize(word + 1, 0);
@@ -46,6 +47,25 @@ namespace rocRoller::KernelGraph::ControlGraph
             }
         }
         return result;
+    }
+
+    std::vector<uint64_t>& selectOrder(NodeOrders& orders, NodeOrdering const order)
+    {
+        switch(order)
+        {
+        case NodeOrdering::LeftFirst:
+            return orders.after;
+        case NodeOrdering::RightFirst:
+            return orders.before;
+        case NodeOrdering::RightInBodyOfLeft:
+            return orders.inBody;
+        case NodeOrdering::LeftInBodyOfRight:
+            return orders.containing;
+        default:
+            break;
+        }
+        AssertFatal(false, "Invalid order: ", ShowValue(order));
+        return orders.after;
     }
 
     std::unordered_map<int, std::unordered_map<int, NodeOrdering>>
@@ -318,23 +338,6 @@ namespace rocRoller::KernelGraph::ControlGraph
     {
         if(!bitsetAny(nodesA) || !bitsetAny(nodesB))
             return;
-        auto selectOrder = [](NodeOrders& orders, NodeOrdering order) -> std::vector<uint64_t>& {
-            switch(order)
-            {
-            case NodeOrdering::LeftFirst:
-                return orders.after;
-            case NodeOrdering::RightFirst:
-                return orders.before;
-            case NodeOrdering::RightInBodyOfLeft:
-                return orders.inBody;
-            case NodeOrdering::LeftInBodyOfRight:
-                return orders.containing;
-            default:
-                break;
-            }
-            AssertFatal(false, "Invalid order: ", ShowValue(order));
-            return orders.after;
-        };
         for(size_t w = 0; w < nodesA.size(); ++w)
         {
             uint64_t bits = nodesA[w];
@@ -366,23 +369,6 @@ namespace rocRoller::KernelGraph::ControlGraph
     {
         if(!bitsetAny(nodesB))
             return;
-        auto selectOrder = [](NodeOrders& orders, NodeOrdering order) -> std::vector<uint64_t>& {
-            switch(order)
-            {
-            case NodeOrdering::LeftFirst:
-                return orders.after;
-            case NodeOrdering::RightFirst:
-                return orders.before;
-            case NodeOrdering::RightInBodyOfLeft:
-                return orders.inBody;
-            case NodeOrdering::LeftInBodyOfRight:
-                return orders.containing;
-            default:
-                break;
-            }
-            AssertFatal(false, "Invalid order: ", ShowValue(order));
-            return orders.after;
-        };
         bitsetOr(selectOrder(m_orderCache[nodeA], order), nodesB);
         auto oppositeOrder = opposite(order);
         for(size_t w = 0; w < nodesB.size(); ++w)
