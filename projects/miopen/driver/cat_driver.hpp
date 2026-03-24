@@ -36,6 +36,7 @@
 #include <cstdlib>
 #include <memory>
 #include <miopen/miopen.h>
+#include <miopen/float_equal.hpp>
 #include <miopen/tensor.hpp>
 #include <numeric>
 #include <vector>
@@ -315,7 +316,7 @@ int CatDriver<Tgpu, Tref>::VerifyForward()
     RunForwardCPU();
     auto error = miopen::rms_range(outhost, out);
 
-    if(!std::isfinite(error) || error != 0)
+    if(!std::isfinite(error) || !miopen::float_equal(error, 0))
     {
         std::cout << "Forward Cat FAILED: " << error << " > 0" << std::endl;
         return EC_VerifyFwd;

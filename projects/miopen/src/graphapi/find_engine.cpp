@@ -38,6 +38,7 @@
 #include <miopen/graphapi/variant_pack.hpp>
 #include <miopen/graphapi/convolution.hpp>
 #include <miopen/graphapi/conv_bias_res_add_activ_forward_executor.hpp>
+#include <miopen/float_equal.hpp>
 #include <miopen/utility/scope.hpp>
 
 namespace miopen {
@@ -426,7 +427,7 @@ public:
 
         float attn_scale                          = std::numeric_limits<float>::quiet_NaN();
         std::shared_ptr<TensorInfoMap> tensor_map = extractFind20Tensors(graph, &attn_scale);
-        assert(attn_scale != std::numeric_limits<float>::quiet_NaN());
+        assert(!miopen::float_equal(attn_scale, std::numeric_limits<float>::quiet_NaN()));
 
         mha_desc.SetParams(attn_scale);
 
@@ -980,7 +981,7 @@ public:
 
         float attnScale                          = std::numeric_limits<float>::quiet_NaN();
         std::shared_ptr<TensorInfoMap> tensorMap = extractFind20Tensors(graph, &attnScale);
-        assert(attnScale != std::numeric_limits<float>::quiet_NaN());
+        assert(!miopen::float_equal(attnScale, std::numeric_limits<float>::quiet_NaN()));
 
         mhaDesc.SetParams(attnScale);
 
