@@ -61,8 +61,8 @@ str(KernelBody module)                     # serializes Module tree to assembly 
 ```python
 def __init__(self, assembler: Assembler, debugConfig: DebugConfig):
 ```
-- `assembler`: `Tensile.Toolchain.Component.Assembler` instance (wraps `amdclang`/HIP compiler path)
-- `debugConfig`: `Tensile.Common.Types.DebugConfig` named tuple (all fields have defaults)
+- `assembler`: `Tensile.Toolchain.Component.Assembler` instance (wraps `amdclang++` path; constructed with `Assembler(Path(cxx_compiler), co_version)`)
+- `debugConfig`: `Tensile.Common.DebugConfig` named tuple (all fields have defaults)
 
 ### 3.2 `KernelWriterAssembly.getSourceFileString` (main entry point)
 ```python
@@ -120,6 +120,14 @@ def processKernelSource(
 
 ## 4. ISA/Architecture Setup Requirements
 
+### 4.0 ROCm Toolchain Prerequisite
+
+The `Assembler` class inherits from `Tensile.Toolchain.Component.Component`, which
+calls `hipconfig --version` at **module import time** to determine `_rocm_version`.
+This means ROCm must be installed and `hipconfig` must be in `$PATH` before any
+import of `Tensile.Toolchain.Component`.  Similarly, the `Assembler` constructor
+calls `amdclang++ --version` to extract the compiler version.
+
 ### 4.1 `rocisa` Singleton Initialization
 
 The `rocisa` C++ extension module provides GPU ISA information. It must be
@@ -176,7 +184,7 @@ import rocisa
 
 # Path to the ROCm C++ compiler (e.g., amdclang++)
 cxx_compiler = "/opt/rocm/bin/amdclang++"
-co_version = "5"  # code object version
+co_version = "4"  # code object version (default; see globalParameters["CodeObjectVersion"])
 
 # Target ISA
 isa = IsaVersion(9, 4, 2)  # gfx942
@@ -191,7 +199,9 @@ assignGlobalParameters({}, isaInfoMap)
 ### Step 2: Create the Assembler and KernelWriterAssembly
 
 ```python
-assembler = Assembler(cxx_compiler, co_version)
+from pathlib import Path
+
+assembler = Assembler(Path(cxx_compiler), co_version)
 debugConfig = DebugConfig()  # all defaults
 kernelWriter = KernelWriterAssembly(assembler, debugConfig)
 ```
@@ -239,9 +249,13 @@ solution = Solution(
 
 ```python
 kernels = solution.getKernels()
-# kernels is [solution] - the Solution IS the kernel
+# kernels is [solution] - the Solution IS the kernel (it sets _state["Kernel"]=True)
 kernel = kernels[0]
-kernel.duplicate = False  # must set this attribute (normally done by writeSolutionsAndKernelsTCL)
+
+# The 'duplicate' attribute is normally set by writeSolutionsAndKernelsTCL() when
+# iterating over multiple kernels.  getSourceFileString() checks kernel.duplicate
+# and returns early with (0, "") if True.  For standalone codegen, always set False.
+kernel.duplicate = False
 ```
 
 ### Step 5: Set rocIsa state and generate assembly
