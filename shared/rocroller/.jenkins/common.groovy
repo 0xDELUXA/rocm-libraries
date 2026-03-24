@@ -380,7 +380,7 @@ def runPerformanceCommand (platform, project)
                         --arch ${platform.gpu} \\
                         --repo github.com/ROCm/rocm-libraries \\
                         --library_size 0 \\
-                        --streamk 0 \\
+                        --streamk 0
                     set -e
 
                     # Archive the CSV file
@@ -591,7 +591,7 @@ def runPerformanceCommand (platform, project)
                         --repo github.com/ROCm/rocm-libraries \\
                         --branch develop \\
                         --library_size 0 \\
-                        --streamk 0 \\
+                        --streamk 0
                     set -e
 
                     # Archive the CSV file
