@@ -379,6 +379,8 @@ def runPerformanceCommand (platform, project)
                         --csv \$CSV_FILE \\
                         --arch ${platform.gpu} \\
                         --repo github.com/ROCm/rocm-libraries \\
+                        --comment "rocroller CI automatic insertion" \\
+                        --commit ${env.GIT_COMMIT} \\
                         --library_size 0 \\
                         --streamk 0
                     set -e
@@ -590,6 +592,8 @@ def runPerformanceCommand (platform, project)
                         --arch ${platform.gpu} \\
                         --repo github.com/ROCm/rocm-libraries \\
                         --branch develop \\
+                        --comment "rocroller CI automatic insertion" \\
+                        --commit ${env.GIT_COMMIT} \\
                         --library_size 0 \\
                         --streamk 0
                     set -e
