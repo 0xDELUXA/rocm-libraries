@@ -326,9 +326,6 @@ def runPerformanceCommand (platform, project)
                     """
             platform.runCommand(this, command)
 
-            // Database insertion for PR builds
-            echo "=== Starting database insertion for PR build ==="
-
             // Determine CSV file location based on masterCompare
             String csvFileLocation
             if (masterCompare) {
@@ -348,7 +345,6 @@ def runPerformanceCommand (platform, project)
 
             def dbInsertCommand = """#!/usr/bin/env bash
                 set -ex
-                echo "=== dbInsertCommand script started ==="
                 cd ${project.paths.project_build_prefix}/
 
                 ${sshBlock}
@@ -385,7 +381,6 @@ def runPerformanceCommand (platform, project)
                         --repo github.com/ROCm/rocm-libraries \\
                         --library_size 0 \\
                         --streamk 0 \\
-                        --comment "testing CI db insertion (PR)" || echo "Warning: Database insertion failed, continuing..."
                     set -e
 
                     # Archive the CSV file
@@ -395,16 +390,12 @@ def runPerformanceCommand (platform, project)
                 fi
             """
 
-            // Run database insertion with credentials
-            echo "=== [PR build] Attempting database insertion with credentials ==="
             try {
                 withCredentials([
                     usernamePassword(credentialsId: 'mathtlibs-rocrollerCI-userpass', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASS')
                 ]) {
-                    echo "=== [PR build] Credentials loaded, running dbInsertCommand ==="
                     platform.runCommand(this, dbInsertCommand)
                 }
-                echo "=== [PR build] Database insertion completed successfully ==="
             } catch (Exception e) {
                 echo "=== [PR build] Database insertion failed: ${e.message} ==="
                 echo "=== [PR build] Continuing without database insertion ==="
@@ -564,7 +555,6 @@ def runPerformanceCommand (platform, project)
             // Database insertion for develop branch
             def dbInsertCommand = """#!/usr/bin/env bash
                 set -ex
-                echo "=== dbInsertCommand script started (develop) ==="
                 cd ${project.paths.project_build_prefix}/
 
                 ${sshBlock}
@@ -587,7 +577,6 @@ def runPerformanceCommand (platform, project)
                     echo "=== CSV file found at \$CSV_FILE ==="
                     DB_LABEL="rocroller_perf_ci_develop"
 
-                    echo "=== Attempting database insertion with label \$DB_LABEL ==="
                     # Try to insert into database, but don't fail if it doesn't work
                     set +e
                     python gemmaiperf/playground/rocblas-bench_scripts/db_insert.py \\
@@ -603,7 +592,6 @@ def runPerformanceCommand (platform, project)
                         --branch develop \\
                         --library_size 0 \\
                         --streamk 0 \\
-                        --comment "testing CI db insertion (develop)" || echo "Warning: Database insertion failed, continuing..."
                     set -e
 
                     # Archive the CSV file
@@ -615,15 +603,12 @@ def runPerformanceCommand (platform, project)
             """
 
             // Run database insertion with credentials
-            echo "=== [develop build] Attempting database insertion with credentials ==="
             try {
                 withCredentials([
                     usernamePassword(credentialsId: 'mathtlibs-rocrollerCI-userpass', usernameVariable: 'DB_USER', passwordVariable: 'DB_PASS')
                 ]) {
-                    echo "=== [develop build] Credentials loaded, running dbInsertCommand ==="
                     platform.runCommand(this, dbInsertCommand)
                 }
-                echo "=== [develop build] Database insertion completed successfully ==="
             } catch (Exception e) {
                 echo "=== [develop build] Database insertion failed: ${e.message} ==="
                 echo "=== [develop build] Continuing without database insertion ==="
