@@ -9,31 +9,19 @@
 
 namespace origami {
 
-// ============================================================================
-// Classification
-// ============================================================================
-
 mn_range_t classify_mn(std::size_t dim) noexcept {
   for (std::size_t i = 0; i < MN_RANGE_UPPER_BOUNDS.size(); ++i) {
-    if (dim <= MN_RANGE_UPPER_BOUNDS[i]) {
-      return static_cast<mn_range_t>(i);
-    }
+    if (dim <= MN_RANGE_UPPER_BOUNDS[i]) return static_cast<mn_range_t>(i);
   }
   return mn_range_t::xlarge;
 }
 
 k_range_t classify_k(std::size_t dim) noexcept {
   for (std::size_t i = 0; i < K_RANGE_UPPER_BOUNDS.size(); ++i) {
-    if (dim <= K_RANGE_UPPER_BOUNDS[i]) {
-      return static_cast<k_range_t>(i);
-    }
+    if (dim <= K_RANGE_UPPER_BOUNDS[i]) return static_cast<k_range_t>(i);
   }
-  return k_range_t::long_k;
+  return k_range_t::xlarge;
 }
-
-// ============================================================================
-// Categorization
-// ============================================================================
 
 gemm_category_t categorize(const problem_t& problem) noexcept {
   return {classify_mn(problem.size.m),
@@ -52,28 +40,20 @@ gemm_category_t category_from_id(std::size_t id) {
                             " out of range [0, " +
                             std::to_string(NUM_GEMM_CATEGORIES) + ")");
   }
-
   const auto k_count = static_cast<std::size_t>(k_range_t::count);
   const auto n_count = static_cast<std::size_t>(mn_range_t::count);
-
   auto k_idx = id % k_count;
   auto n_idx = (id / k_count) % n_count;
   auto m_idx = id / (k_count * n_count);
-
   return {static_cast<mn_range_t>(m_idx),
           static_cast<mn_range_t>(n_idx),
           static_cast<k_range_t>(k_idx),
           false};
 }
 
-// ============================================================================
-// gemm_category_t members
-// ============================================================================
-
 std::size_t gemm_category_t::id() const noexcept {
   const auto k_count = static_cast<std::size_t>(k_range_t::count);
   const auto n_count = static_cast<std::size_t>(mn_range_t::count);
-
   return static_cast<std::size_t>(m_range) * n_count * k_count +
          static_cast<std::size_t>(n_range) * k_count +
          static_cast<std::size_t>(k_range);
@@ -96,26 +76,21 @@ std::size_t gemm_category_t::n_upper() const noexcept { return MN_RANGE_UPPER_BO
 std::size_t gemm_category_t::k_lower() const noexcept { return k_lower_bound(k_range); }
 std::size_t gemm_category_t::k_upper() const noexcept { return K_RANGE_UPPER_BOUNDS[static_cast<std::size_t>(k_range)]; }
 
-double gemm_category_t::representative_arithmetic_intensity(double bytes_per_element) const noexcept {
-  constexpr double XLARGE_CAP = 16384.0;
-  auto geom_mean = [](double lo, double hi) -> double {
-    double effective_hi = (hi == static_cast<double>(SIZE_MAX)) ? XLARGE_CAP : hi;
-    return std::sqrt(lo * effective_hi);
+double gemm_category_t::representative_arithmetic_intensity(double bpe) const noexcept {
+  constexpr double CAP = 16384.0;
+  auto gm = [](double lo, double hi) -> double {
+    return std::sqrt(lo * ((hi == static_cast<double>(SIZE_MAX)) ? CAP : hi));
   };
-  double m = geom_mean(static_cast<double>(m_lower()), static_cast<double>(m_upper()));
-  double n = geom_mean(static_cast<double>(n_lower()), static_cast<double>(n_upper()));
-  double k = geom_mean(static_cast<double>(k_lower()), static_cast<double>(k_upper()));
-  return compute_arithmetic_intensity(m, n, k, bytes_per_element);
+  return compute_arithmetic_intensity(
+      gm(static_cast<double>(m_lower()), static_cast<double>(m_upper())),
+      gm(static_cast<double>(n_lower()), static_cast<double>(n_upper())),
+      gm(static_cast<double>(k_lower()), static_cast<double>(k_upper())),
+      bpe);
 }
 
 std::string gemm_category_t::to_string() const {
-  auto fmt = [](std::size_t v) -> std::string {
-    return v == SIZE_MAX ? "inf" : std::to_string(v);
-  };
-  auto pad = [](std::size_t val) -> std::string {
-    if (val < 10) return "0" + std::to_string(val);
-    return std::to_string(val);
-  };
+  auto fmt = [](std::size_t v) { return v == SIZE_MAX ? std::string("inf") : std::to_string(v); };
+  auto pad = [](std::size_t v) { return (v < 10 ? "00" : v < 100 ? "0" : "") + std::to_string(v); };
 
   return "cat" + pad(id()) +
          "_M[" + std::to_string(m_lower()) + "-" + fmt(m_upper()) + "]" +
@@ -124,16 +99,9 @@ std::string gemm_category_t::to_string() const {
          "_" + (batched ? "batched" : "single");
 }
 
-// ============================================================================
-// Arithmetic intensity
-// ============================================================================
-
-double compute_arithmetic_intensity(double m, double n, double k,
-                                    double bytes_per_element) noexcept {
-  double flops = 2.0 * m * n * k;
-  double bytes = (m * k + k * n + m * n) * bytes_per_element;
-  if (bytes <= 0.0) return 0.0;
-  return flops / bytes;
+double compute_arithmetic_intensity(double m, double n, double k, double bpe) noexcept {
+  double bytes = (m * k + k * n + m * n) * bpe;
+  return bytes > 0.0 ? 2.0 * m * n * k / bytes : 0.0;
 }
 
 }  // namespace origami

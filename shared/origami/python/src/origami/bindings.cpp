@@ -328,8 +328,11 @@ NB_MODULE(origami, m) {
       .export_values();
 
   nanobind::enum_<origami::k_range_t>(m, "k_range_t")
-      .value("short_k", origami::k_range_t::short_k)
-      .value("long_k", origami::k_range_t::long_k)
+      .value("tiny", origami::k_range_t::tiny)
+      .value("small", origami::k_range_t::small)
+      .value("medium", origami::k_range_t::medium)
+      .value("large", origami::k_range_t::large)
+      .value("xlarge", origami::k_range_t::xlarge)
       .export_values();
 
   nanobind::class_<origami::gemm_category_t>(m, "gemm_category_t")

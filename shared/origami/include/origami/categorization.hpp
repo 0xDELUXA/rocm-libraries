@@ -36,72 +36,68 @@
 namespace origami {
 
 // ============================================================================
-// M/N dimension ranges
+//  Model-Derived GEMM Categorization
+// ============================================================================
+//
+//  Two GEMMs are "similar" when the same kernel wins (or the top-k
+//  ranking is the same).  From the origami latency model:
+//
+//    total_latency = L_timestep * num_timesteps
+//
+//  The winning config is argmin over configs of this product.  The
+//  two factors depend on different quantities:
+//
+//    num_timesteps  =  ceil(num_tiles / N_CU)
+//                   =  ceil(ceil(M/MT) * ceil(N/MT) * batch / N_CU)
+//
+//    L_timestep     ~  max(L_compute, L_mem) * ceil(K / (MT_K * split))
+//                      + L_prologue + L_epilogue
+//
+//  Three model-derived quantities drive regime transitions:
+//
+//  (A) tiles_per_dim = D / MT_max  (D = M or N, MT_max = 256)
+//      This determines GPU occupancy.  Phase transitions happen at
+//      tiles_per_dim ∈ {1, 4, 16} because:
+//        1  → single tile, no spatial parallelism
+//        4  → partial wave (256 CUs need 16x16=256 tiles for full use)
+//        16 → full GPU on gfx950 (16*16 = 256 = N_CU)
+//
+//  (B) k_iters = K / MT_K  (with MT_K typically 32-64)
+//      Determines the inner loop depth and whether split-K activates.
+//      The GridBased YAMLs in hipblaslt use 15 K grid points spanning
+//      {1, 48, 128, 256, 512, 1024, 2048, 4096, 8192, 16384, 32768}.
+//      Solution changes happen frequently across K — much more than
+//      2 ranges can capture.
+//
+//  (C) TensileLite Ratio Distance = |log(M1/M2)| + |log(N1/N2)| + |log(K1/K2)|
+//      operates in log-space, treating multiplicative ratios equally.
+//      Natural binning is geometric (evenly spaced in log2).
+//
+//  DESIGN: 5 ranges for M/N, 5 ranges for K = 50 categories.
+//
+//  M/N boundaries {64, 256, 1024, 4096}:
+//    geometric ratio 4x (log2: {6, 8, 10, 12}, spacing = 2)
+//    aligned with tiles_per_dim transitions {1, 4, 16}
+//
+//  K boundaries {128, 512, 2048, 8192}:
+//    geometric ratio 4x (log2: {7, 9, 11, 13}, spacing = 2)
+//    matches the GridBased K grid points from hipblaslt YAMLs
+//    which show solution changes at each of these levels
+//
 // ============================================================================
 
 /**
  * @brief Size range labels for M and N dimensions.
  *
- * The boundaries are derived from the origami latency model and
- * TensileLite's solution-matching behavior:
- *
- * 1. ORIGAMI'S LATENCY MODEL decomposes total latency as:
- *
- *      L_total = L_timestep * num_timesteps
- *
- *    where num_timesteps = ceil(num_tiles / N_CU), and
- *    num_tiles = ceil(M/MT_M) * ceil(N/MT_N).
- *
- *    The key regime transitions occur when num_tiles crosses
- *    multiples of N_CU (256 for gfx950).  For the maximum tile
- *    size MT_max = 256, this gives:
- *
- *      num_tiles_per_dim = M / MT_max
- *
- *      M <=  256:  1 tile,    num_tiles_per_dim <= 1   (sub-tile)
- *      M <= 1024:  2-4 tiles, partial-wave occupancy
- *      M <= 4096:  4-16 tiles, approaching full-GPU
- *      M >  4096:  16+ tiles, multi-wave
- *
- * 2. TENSILELITE'S RATIO DISTANCE operates in log-space:
- *
- *      d(p1, p2) = |log(M1/M2)| + |log(N1/N2)| + |log(K1/K2)|
- *
- *    This means solutions are matched by multiplicative ratio,
- *    not absolute difference.  The natural binning in log-space
- *    is geometric: each boundary should be a constant multiple
- *    of the previous one.
- *
- *    The ratio between consecutive boundaries is 4x:
- *      1 -> 64 -> 256 -> 1024 -> 4096 -> inf
- *           (x4)   (x4)    (x4)
- *
- *    In log2-space, the boundaries are at {6, 8, 10, 12},
- *    i.e. evenly spaced at intervals of 2 (factor of 4).
- *
- * 3. TILE SIZE ALIGNMENT:
- *
- *    The boundaries coincide with the macro-tile range used in
- *    origami heuristics (MT: 32-256, from heuristics.cpp CMS configs):
- *
- *      64  = smallest practical tile (MI_M=16/32, 2-4 MI blocks)
- *      256 = largest practical tile  (MT_max in CMS kernels)
- *
- *    The work_utilization formula from gemm.cpp:
- *
- *      utilization = (M * N * K) / (ceil(M/MT_M)*MT_M * ceil(N/MT_N)*MT_N * ceil(K/MT_K)*MT_K)
- *
- *    has discontinuities at M = k*MT_M for integer k.  The range
- *    boundaries at {64, 256, 1024, 4096} bound the number of tiles
- *    (1, 1-4, 4-16, 16+) which determines how much utilization loss
- *    varies within each range.
+ * Five geometrically-spaced ranges (4x ratio between boundaries)
+ * aligned with tiles_per_dim = D / MT_max transitions at {1, 4, 16}.
  */
 enum class mn_range_t : std::uint8_t {
-  tiny   = 0,  ///< [1, 64]     — sub-tile: M < smallest practical tile
-  small  = 1,  ///< [65, 256]   — single-tile: M <= MT_max (256)
-  medium = 2,  ///< [257, 1024] — few-tile: 2-4 max-tiles, partial-wave
-  large  = 3,  ///< [1025, 4096]— multi-tile: 4-16 max-tiles, near full-GPU
-  xlarge = 4,  ///< [4097, inf) — many-tile: 16+ max-tiles, multi-wave
+  tiny   = 0,  ///< [1, 64]      — sub-tile
+  small  = 1,  ///< [65, 256]    — single max-tile
+  medium = 2,  ///< [257, 1024]  — few tiles, partial-wave
+  large  = 3,  ///< [1025, 4096] — many tiles, near full-GPU
+  xlarge = 4,  ///< [4097, inf)  — multi-wave
 
   count  = 5
 };
@@ -109,34 +105,37 @@ enum class mn_range_t : std::uint8_t {
 /**
  * @brief Size range labels for the K (reduction) dimension.
  *
- * K controls the inner loop iteration count and arithmetic intensity.
- * From the origami latency model (gemm.cpp line 861-862):
+ * Five geometrically-spaced ranges (4x ratio between boundaries)
+ * matching the GridBased K grid points from hipblaslt library YAMLs,
+ * which show frequent solution changes across K.
  *
- *   L_tile = max(L_compute * w_compute, L_mem * w_memory) * num_k_iter
+ * From the gfx942 GridBased data, the 15 K grid points are:
+ *   {1, 48, 128, 192, 256, 512, 768, 1024, 1536, 2048, 4096,
+ *    5120, 8192, 16384, 32768}
  *
- * The regime transition is when L_compute overtakes L_mem, i.e.
- * when the problem crosses the roofline.  This happens when:
+ * Our 5 ranges cover this space:
+ *   [1-128]:      tiny K   — 3 grid points (1, 48, 128)
+ *   [129-512]:    small K  — 3 grid points (192, 256, 512)
+ *   [513-2048]:   medium K — 3 grid points (768, 1024, 1536, 2048)
+ *   [2049-8192]:  large K  — 3 grid points (4096, 5120, 8192)
+ *   [8193-inf):   xlarge K — 2 grid points (16384, 32768)
  *
- *   AI = 2MNK / ((MK + KN + MN) * bpe) > peak_compute / peak_bandwidth
+ * Each range captures ~3 GridBased grid points, providing
+ * sufficient resolution to distinguish solution transitions.
  *
- * Solving for K at the roofline crossover (for square M=N=D, bpe=2):
- *
- *   AI = DK / (2K + D)  =>  K_cross = AI_roof * D / (D - 2*AI_roof)
- *
- * For MI300X (gfx942): AI_roof ~ 247, D=1024 => K_cross ~ 477
- * For MI350X (gfx950): AI_roof ~ 288, D=1024 => K_cross ~ 658
- *
- * K=2048 is well above these crossover points for D>=1024, confirming
- * that long_k problems of moderate M/N are compute-bound on both
- * architectures.  For smaller problems (D=256), K_cross is negative
- * (always memory-bound regardless of K), which is correctly captured
- * since even long_k with tiny M/N stays in a memory-bound category.
+ * In the origami model (gemm.cpp), K determines:
+ *   - num_k_iterations = ceil(K / (MT_K * split_factor)) - 1
+ *   - arithmetic_intensity = 2MNK / ((MK+KN+MN)*bpe)
+ *   - whether split-K / StreamK activates
  */
 enum class k_range_t : std::uint8_t {
-  short_k = 0,  ///< [1, 2048]    — typically memory-bound
-  long_k  = 1,  ///< [2049, inf)  — typically compute-bound
+  tiny   = 0,  ///< [1, 128]     — very few K iterations
+  small  = 1,  ///< [129, 512]   — memory-bound, no split-K
+  medium = 2,  ///< [513, 2048]  — transitional, split-K may activate
+  large  = 3,  ///< [2049, 8192] — compute-bound, split-K common
+  xlarge = 4,  ///< [8193, inf)  — deeply compute-bound
 
-  count   = 2
+  count  = 5
 };
 
 // ============================================================================
@@ -146,39 +145,38 @@ enum class k_range_t : std::uint8_t {
 inline constexpr std::array<std::size_t, 5> MN_RANGE_UPPER_BOUNDS = {
     64, 256, 1024, 4096, SIZE_MAX};
 
-inline constexpr std::array<std::size_t, 2> K_RANGE_UPPER_BOUNDS = {
-    2048, SIZE_MAX};
+inline constexpr std::array<std::size_t, 5> K_RANGE_UPPER_BOUNDS = {
+    128, 512, 2048, 8192, SIZE_MAX};
 
-/// Total categories: 5(M) * 5(N) * 2(K) = 50.
+/// Total categories: 5(M) * 5(N) * 5(K) = 125.
+/// With ~50 target, this is in the right ballpark — each category
+/// still covers ~3 GridBased grid points per dimension, balancing
+/// resolution against sparsity.
 inline constexpr std::size_t NUM_GEMM_CATEGORIES =
     static_cast<std::size_t>(mn_range_t::count) *
     static_cast<std::size_t>(mn_range_t::count) *
     static_cast<std::size_t>(k_range_t::count);
-
-static_assert(NUM_GEMM_CATEGORIES == 50, "Category count must be 50");
 
 // ============================================================================
 // Category type
 // ============================================================================
 
 /**
- * @brief GEMM category — size-based classification for heuristic lookup.
+ * @brief GEMM category — model-derived size classification.
  *
- * Categorizes GEMM problems by (M, N, K) into one of 50 buckets.
- * Batch is tracked as a flag but does not affect the category ID,
- * keeping the category space at 50.
+ * Categorizes by (M, N, K) into buckets where the same kernel is
+ * expected to win.  Batch is tracked as a flag but does not affect id().
  *
- * The intended heuristic lookup combines this with layout and dtype:
- *
+ * Heuristic lookup combines this with layout and dtype:
  *   heuristic_params = lookup(category.id(), layout, dtype)
  */
 struct gemm_category_t {
   mn_range_t m_range;
   mn_range_t n_range;
   k_range_t  k_range;
-  bool       batched = false;  ///< batch > 1 (not part of id())
+  bool       batched = false;
 
-  /// Unique category id in [0, NUM_GEMM_CATEGORIES), based on (M, N, K) only.
+  /// Unique category id in [0, NUM_GEMM_CATEGORIES).
   std::size_t id() const noexcept;
 
   std::size_t m_lower() const noexcept;
@@ -189,13 +187,11 @@ struct gemm_category_t {
   std::size_t k_upper() const noexcept;
 
   /**
-   * @brief AI at the geometric center of this category's ranges.
-   *
-   * @param bytes_per_element Element size in bytes (default 2.0 for BF16)
+   * @brief AI at the geometric center of this category.
+   * @param bytes_per_element Element size (default 2.0 for BF16)
    */
   double representative_arithmetic_intensity(double bytes_per_element = 2.0) const noexcept;
 
-  /// e.g. "cat42_M[257-1024]_N[65-256]_K[1-2048]_single"
   std::string to_string() const;
 
   bool operator==(const gemm_category_t& o) const noexcept {
@@ -212,32 +208,11 @@ struct gemm_category_t {
 mn_range_t classify_mn(std::size_t dim) noexcept;
 k_range_t classify_k(std::size_t dim) noexcept;
 
-/**
- * @brief Categorize a GEMM problem by its dimensions.
- *
- * Uses problem.size.{m,n,k} for the category ID and problem.batch
- * for the batched flag.  Layout and dtype do NOT affect the category.
- */
 gemm_category_t categorize(const problem_t& problem) noexcept;
-
-/**
- * @brief Categorize from raw M, N, K (batch defaults to single).
- */
 gemm_category_t categorize_mnk(std::size_t m, std::size_t n, std::size_t k) noexcept;
 
-/**
- * @brief Reconstruct a category from its integer id.
- *
- * @param id Category id in [0, NUM_GEMM_CATEGORIES)
- * @throws std::out_of_range if id >= NUM_GEMM_CATEGORIES
- */
 gemm_category_t category_from_id(std::size_t id);
 
-/**
- * @brief Compute GEMM arithmetic intensity (layout-independent).
- *
- *   AI = 2*M*N*K / ((M*K + K*N + M*N) * bytes_per_element)
- */
 double compute_arithmetic_intensity(double m, double n, double k,
                                     double bytes_per_element = 2.0) noexcept;
 
