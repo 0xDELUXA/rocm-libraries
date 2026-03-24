@@ -356,7 +356,8 @@ NB_MODULE(origami, m) {
       .def("generate_training_samples",
            &origami::gemm_category_t::generate_training_samples,
            nanobind::arg("samples_per_dim") = 4,
-           nanobind::arg("cap") = 32768,
+           nanobind::arg("cap_mn") = 131072,
+           nanobind::arg("cap_k") = 32768,
            "Generate log-uniform (M,N,K) samples within this category")
       .def("__eq__", &origami::gemm_category_t::operator==)
       .def("__ne__", &origami::gemm_category_t::operator!=);

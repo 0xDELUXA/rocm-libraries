@@ -126,11 +126,11 @@ static std::vector<std::size_t> log_uniform_samples(std::size_t lo, std::size_t 
 }
 
 std::vector<dim3_t> gemm_category_t::generate_training_samples(
-    std::size_t samples_per_dim, std::size_t cap) const {
+    std::size_t samples_per_dim, std::size_t cap_mn, std::size_t cap_k) const {
 
-  auto m_samples = log_uniform_samples(m_lower(), m_upper(), samples_per_dim, cap);
-  auto n_samples = log_uniform_samples(n_lower(), n_upper(), samples_per_dim, cap);
-  auto k_samples = log_uniform_samples(k_lower(), k_upper(), samples_per_dim, cap);
+  auto m_samples = log_uniform_samples(m_lower(), m_upper(), samples_per_dim, cap_mn);
+  auto n_samples = log_uniform_samples(n_lower(), n_upper(), samples_per_dim, cap_mn);
+  auto k_samples = log_uniform_samples(k_lower(), k_upper(), samples_per_dim, cap_k);
 
   std::vector<dim3_t> result;
   result.reserve(m_samples.size() * n_samples.size() * k_samples.size());

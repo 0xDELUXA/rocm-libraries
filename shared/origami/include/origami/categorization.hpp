@@ -139,14 +139,20 @@ struct gemm_category_t {
    *
    * Samples are spaced uniformly in log2-space, matching TensileLite's
    * Ratio distance metric.  For the unbounded xlarge ranges, samples
-   * extend to cap (default 32768).
+   * extend to cap_mn / cap_k.
+   *
+   * Default caps are from the actual GridBased library data range:
+   *   M, N: up to ~131072 (log2 = 17) from gfx942 tuning
+   *   K:    up to ~32768  (log2 = 15) from gfx942 K grid points
    *
    * @param samples_per_dim Number of samples per dimension
-   * @param cap Upper cap for unbounded (xlarge) ranges
+   * @param cap_mn Upper cap for unbounded M/N ranges
+   * @param cap_k  Upper cap for unbounded K range
    * @return Vector of (M, N, K) triples
    */
   std::vector<dim3_t> generate_training_samples(std::size_t samples_per_dim = 4,
-                                                std::size_t cap = 32768) const;
+                                                std::size_t cap_mn = 131072,
+                                                std::size_t cap_k = 32768) const;
 
   std::string to_string() const;
 

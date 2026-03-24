@@ -137,15 +137,18 @@ TEST_CASE("Categorization: generate_training_samples count", "[categorization]")
 TEST_CASE("Categorization: samples are within category bounds", "[categorization]") {
   for (std::size_t id = 0; id < origami::NUM_GEMM_CATEGORIES; ++id) {
     auto cat = origami::category_from_id(id);
-    auto samples = cat.generate_training_samples(3);
+    auto samples = cat.generate_training_samples(3, 131072, 32768);
 
     for (const auto& s : samples) {
       REQUIRE(s.m >= cat.m_lower());
       REQUIRE(s.n >= cat.n_lower());
       REQUIRE(s.k >= cat.k_lower());
-      if (cat.m_upper() != SIZE_MAX) REQUIRE(s.m <= cat.m_upper());
-      if (cat.n_upper() != SIZE_MAX) REQUIRE(s.n <= cat.n_upper());
-      if (cat.k_upper() != SIZE_MAX) REQUIRE(s.k <= cat.k_upper());
+      auto m_ub = cat.m_upper() == SIZE_MAX ? static_cast<std::size_t>(131072) : cat.m_upper();
+      auto n_ub = cat.n_upper() == SIZE_MAX ? static_cast<std::size_t>(131072) : cat.n_upper();
+      auto k_ub = cat.k_upper() == SIZE_MAX ? static_cast<std::size_t>(32768) : cat.k_upper();
+      REQUIRE(s.m <= m_ub);
+      REQUIRE(s.n <= n_ub);
+      REQUIRE(s.k <= k_ub);
     }
   }
 }
