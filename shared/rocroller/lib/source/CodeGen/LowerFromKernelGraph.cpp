@@ -714,17 +714,16 @@ namespace rocRoller
                 for(auto const& c : m_graph->mapper.getConnections(tag))
                 {
                     Log::debug("  deallocate dimension: {} tag {}", c.coordinate, tag);
-                    //co_yield Instruction::Comment(concatenate("Deallocate ", c.coordinate));
+                    co_yield Instruction::Comment(concatenate("Deallocate ", c.coordinate));
                     m_context->registerTagManager()->deleteTag(c.coordinate);
                 }
 
                 for(auto const& argument : deallocate.arguments)
                 {
                     Log::debug("Deallocate argument {}", argument);
-                    //co_yield Instruction::Comment(concatenate("Deallocate ", argument));
+                    co_yield Instruction::Comment(concatenate("Deallocate ", argument));
                     m_context->argLoader()->releaseArgument(argument);
                 }
-                co_return;
             }
 
             Generator<Instruction> operator()(int tag, Barrier const&)
