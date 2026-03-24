@@ -353,8 +353,29 @@ NB_MODULE(origami, m) {
            &origami::gemm_category_t::representative_arithmetic_intensity,
            nanobind::arg("bytes_per_element") = 2.0,
            "AI at the geometric center of this category")
+      .def("generate_training_samples",
+           &origami::gemm_category_t::generate_training_samples,
+           nanobind::arg("samples_per_dim") = 4,
+           nanobind::arg("cap") = 32768,
+           "Generate log-uniform (M,N,K) samples within this category")
       .def("__eq__", &origami::gemm_category_t::operator==)
       .def("__ne__", &origami::gemm_category_t::operator!=);
+
+  nanobind::class_<origami::gemm_ml_features_t>(m, "gemm_ml_features_t")
+      .def(nanobind::init<>())
+      .def_rw("log2_m", &origami::gemm_ml_features_t::log2_m)
+      .def_rw("log2_n", &origami::gemm_ml_features_t::log2_n)
+      .def_rw("log2_k", &origami::gemm_ml_features_t::log2_k)
+      .def_rw("arithmetic_intensity", &origami::gemm_ml_features_t::arithmetic_intensity)
+      .def_rw("mn_aspect_ratio", &origami::gemm_ml_features_t::mn_aspect_ratio)
+      .def_rw("k_mn_ratio", &origami::gemm_ml_features_t::k_mn_ratio)
+      .def_rw("log2_mn_tiles", &origami::gemm_ml_features_t::log2_mn_tiles);
+
+  m.def("compute_ml_features",
+        &origami::compute_ml_features,
+        nanobind::arg("m"), nanobind::arg("n"), nanobind::arg("k"),
+        nanobind::arg("bytes_per_element") = 2.0,
+        "Compute ML feature vector from (M, N, K)");
 
   m.def("categorize",
         &origami::categorize,

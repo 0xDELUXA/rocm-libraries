@@ -51,6 +51,10 @@ gemm_category_t category_from_id(std::size_t id) {
           false};
 }
 
+// ============================================================================
+// gemm_category_t
+// ============================================================================
+
 std::size_t gemm_category_t::id() const noexcept {
   const auto k_count = static_cast<std::size_t>(k_range_t::count);
   const auto n_count = static_cast<std::size_t>(mn_range_t::count);
@@ -77,7 +81,7 @@ std::size_t gemm_category_t::k_lower() const noexcept { return k_lower_bound(k_r
 std::size_t gemm_category_t::k_upper() const noexcept { return K_RANGE_UPPER_BOUNDS[static_cast<std::size_t>(k_range)]; }
 
 double gemm_category_t::representative_arithmetic_intensity(double bpe) const noexcept {
-  constexpr double CAP = 16384.0;
+  constexpr double CAP = 32768.0;
   auto gm = [](double lo, double hi) -> double {
     return std::sqrt(lo * ((hi == static_cast<double>(SIZE_MAX)) ? CAP : hi));
   };
@@ -87,6 +91,83 @@ double gemm_category_t::representative_arithmetic_intensity(double bpe) const no
       gm(static_cast<double>(k_lower()), static_cast<double>(k_upper())),
       bpe);
 }
+
+// ============================================================================
+// Training sample generation
+// ============================================================================
+
+static std::vector<std::size_t> log_uniform_samples(std::size_t lo, std::size_t hi,
+                                                    std::size_t count, std::size_t cap) {
+  if (hi == SIZE_MAX) hi = cap;
+  lo = std::max(lo, static_cast<std::size_t>(1));
+  hi = std::max(hi, lo);
+
+  double log_lo = std::log2(static_cast<double>(lo));
+  double log_hi = std::log2(static_cast<double>(hi));
+
+  std::vector<std::size_t> samples;
+  samples.reserve(count);
+
+  if (count == 1) {
+    samples.push_back(static_cast<std::size_t>(std::round(std::sqrt(lo * hi))));
+    return samples;
+  }
+
+  for (std::size_t i = 0; i < count; ++i) {
+    double t = static_cast<double>(i) / static_cast<double>(count - 1);
+    double log_val = log_lo + t * (log_hi - log_lo);
+    auto val = static_cast<std::size_t>(std::round(std::exp2(log_val)));
+    val = std::max(val, lo);
+    val = std::min(val, hi);
+    samples.push_back(val);
+  }
+
+  return samples;
+}
+
+std::vector<dim3_t> gemm_category_t::generate_training_samples(
+    std::size_t samples_per_dim, std::size_t cap) const {
+
+  auto m_samples = log_uniform_samples(m_lower(), m_upper(), samples_per_dim, cap);
+  auto n_samples = log_uniform_samples(n_lower(), n_upper(), samples_per_dim, cap);
+  auto k_samples = log_uniform_samples(k_lower(), k_upper(), samples_per_dim, cap);
+
+  std::vector<dim3_t> result;
+  result.reserve(m_samples.size() * n_samples.size() * k_samples.size());
+
+  for (auto m : m_samples)
+    for (auto n : n_samples)
+      for (auto k : k_samples)
+        result.push_back({m, n, k});
+
+  return result;
+}
+
+// ============================================================================
+// ML Features
+// ============================================================================
+
+gemm_ml_features_t compute_ml_features(std::size_t m, std::size_t n, std::size_t k,
+                                       double bytes_per_element) noexcept {
+  double dm = std::max(static_cast<double>(m), 1.0);
+  double dn = std::max(static_cast<double>(n), 1.0);
+  double dk = std::max(static_cast<double>(k), 1.0);
+
+  constexpr double MT_MAX = 256.0;
+
+  return {
+      std::log2(dm),
+      std::log2(dn),
+      std::log2(dk),
+      compute_arithmetic_intensity(dm, dn, dk, bytes_per_element),
+      std::log2(dm / dn),
+      std::log2(dk / std::sqrt(dm * dn)),
+      std::log2(dm * dn / (MT_MAX * MT_MAX))};
+}
+
+// ============================================================================
+// Strings
+// ============================================================================
 
 std::string gemm_category_t::to_string() const {
   auto fmt = [](std::size_t v) { return v == SIZE_MAX ? std::string("inf") : std::to_string(v); };
@@ -98,6 +179,10 @@ std::string gemm_category_t::to_string() const {
          "_K[" + std::to_string(k_lower()) + "-" + fmt(k_upper()) + "]" +
          "_" + (batched ? "batched" : "single");
 }
+
+// ============================================================================
+// Arithmetic intensity
+// ============================================================================
 
 double compute_arithmetic_intensity(double m, double n, double k, double bpe) noexcept {
   double bytes = (m * k + k * n + m * n) * bpe;
