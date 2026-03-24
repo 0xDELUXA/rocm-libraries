@@ -260,15 +260,25 @@ namespace rocRoller::KernelGraph
     {
         auto kgraph = original;
 
+        // Map that represents inlining that has already been performed
+        std::unordered_map<int, int> inliningMap;
         auto candidates = InlineExpressionsDetail::findInliningCandidates(kgraph);
         for(auto candidate : candidates)
         {
             auto coordinateToReplace = candidate.m_coordinate;
+            auto writingIdx          = candidate.m_writingNode;
+            auto readingIdx          = candidate.m_readingNode;
 
-            auto replacementExpr
-                = kgraph.control.getNode<Assign>(candidate.m_writingNode).expression;
+            // The reading node may have already been inlined into a different node,
+            // so follow the inlining map to find the true reading node
+            while(inliningMap.find(readingIdx) != inliningMap.end())
+            {
+                readingIdx = inliningMap.at(readingIdx);
+            }
 
-            auto readingNode = kgraph.control.getNode<Assign>(candidate.m_readingNode);
+            auto replacementExpr = kgraph.control.getNode<Assign>(writingIdx).expression;
+
+            auto readingNode = kgraph.control.getNode<Assign>(readingIdx);
             auto readingExpr = readingNode.expression;
 
             // Replace the DataFlowTag in readingExpr corresponding to coordinateToReplace with replacementExpr
@@ -277,12 +287,12 @@ namespace rocRoller::KernelGraph
 
             // Replace the old expression with this new one
             readingNode.expression = newExpr;
-            kgraph.control.setElement(candidate.m_readingNode, readingNode);
+            kgraph.control.setElement(readingIdx, readingNode);
 
             // Replace writing node with NOP
             auto nop = kgraph.control.addElement(NOP());
-            replaceWith(kgraph, candidate.m_writingNode, nop, false);
-            purgeNodes(kgraph, {candidate.m_writingNode});
+            replaceWith(kgraph, writingIdx, nop, false);
+            purgeNodes(kgraph, {writingIdx});
 
             // If necessary, delete the coordinate and connect any parents to any children
             if(candidate.m_deleteCoordinate)
@@ -328,6 +338,10 @@ namespace rocRoller::KernelGraph
                     kgraph.coordinates.addElement(
                         CoordinateGraph::DataFlow(), incomingNodes, outgoingNodes);
             }
+
+            // Now that we have inlined writingNode into readingNode,
+            // add a mapping from writingNode to readingNode
+            inliningMap.insert({writingIdx, readingIdx});
         }
 
         return kgraph;
