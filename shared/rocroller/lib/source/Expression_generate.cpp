@@ -615,7 +615,7 @@ namespace rocRoller
                 co_yield prepareSourceOperands(results, schedulerLockCount, subExprs);
                 auto resType = resultType(expr);
 
-                if(resType.valueCount > 1 && resType.regType == Register::Type::Accumulator)
+                if(resType.regType == Register::Type::Accumulator)
                 {
                     const auto& arch = m_context->targetArchitecture();
                     AssertFatal(arch.HasCapability(GPUCapability::HasAccCD),

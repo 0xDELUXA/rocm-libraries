@@ -658,14 +658,16 @@ namespace rocRoller
                     Register::ValuePtr dest;
                     if(!deferred)
                     {
+                        auto resType    = resultType(assign.expression);
                         auto valueCount = assign.valueCount;
                         if(valueCount == 0)
-                        {
-                            auto tmp   = m_context->registerTagManager()->getRegister(dimTag);
-                            valueCount = tmp->valueCount();
-                        }
+                            valueCount = resType.valueCount;
+                        else
+                            AssertFatal(valueCount == resType.valueCount,
+                                        ShowValue(valueCount),
+                                        ShowValue(resType.valueCount));
 
-                        auto varType = resultVariableType(assign.expression);
+                        auto varType = resType.varType;
                         if(assign.variableType)
                         {
                             varType = assign.variableType.value();
