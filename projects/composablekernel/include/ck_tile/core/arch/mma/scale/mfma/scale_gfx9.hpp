@@ -42,8 +42,11 @@ struct amdgcn_mma<fp8_t, fp8_t, fp32_t, 16u, 16u, 128u, CtrlFlags, CompilerTarge
         TypeToFlagValue_v<fp8_t> == CtrlFlags::type_B,
         "CtrlFlags::type_B does not match the value corresponding to the input B data type.");
 
-    CK_TILE_DEVICE static auto
-    exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec) -> CVecType
+    CK_TILE_DEVICE static auto exec(AVecType const& aVec,
+                                    BVecType const& bVec,
+                                    CVecType const& cVec,
+                                    int const& scale_A,
+                                    int const& scale_B) -> CVecType
     {
         return {
             __builtin_amdgcn_mfma_scale_f32_16x16x128_f8f6f4(aVec,
@@ -52,9 +55,9 @@ struct amdgcn_mma<fp8_t, fp8_t, fp32_t, 16u, 16u, 128u, CtrlFlags, CompilerTarge
                                                              static_cast<int>(CtrlFlags::type_A),
                                                              static_cast<int>(CtrlFlags::type_B),
                                                              static_cast<int>(CtrlFlags::OPSEL_A),
-                                                             static_cast<int>(CtrlFlags::scale_A),
+                                                             scale_A,
                                                              static_cast<int>(CtrlFlags::OPSEL_B),
-                                                             static_cast<int>(CtrlFlags::scale_B))};
+                                                             scale_B)};
     }
 };
 

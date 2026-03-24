@@ -47,7 +47,7 @@ struct ScaleMfmaDefaultSelector
                                    WaveTileM,
                                    WaveTileN,
                                    WaveTileKTest,
-                                   DefaultScaleMfmaCtrlFlags<ADataType, BDataType, 127, 127>,
+                                   DefaultScaleMfmaCtrlFlags<ADataType, BDataType>,
                                    CompilerTarget,
                                    MmaOpFamily::SCALE>;
 

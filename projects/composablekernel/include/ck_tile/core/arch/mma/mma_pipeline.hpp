@@ -153,9 +153,14 @@ struct MmaPipelineBase
         return Transform::exec(formatBuffer<DstT>(std::forward<Args>(args)...));
     }
 
-    template <typename ATransformInputs, typename BTransformInputs, typename CTransformInputs>
-    CK_TILE_DEVICE static decltype(auto)
-    applyTransformsToInputs(ATransformInputs&& a, BTransformInputs&& b, CTransformInputs&& accum)
+    template <typename ATransformInputs,
+              typename BTransformInputs,
+              typename CTransformInputs,
+              typename... ExtraArgs>
+    CK_TILE_DEVICE static decltype(auto) applyTransformsToInputs(ATransformInputs&& a,
+                                                                 BTransformInputs&& b,
+                                                                 CTransformInputs&& accum,
+                                                                 ExtraArgs&&... extras)
     {
         using InternalAVecT = typename Derived::InternalAVecT;
         using InternalBVecT = typename Derived::InternalBVecT;
@@ -168,14 +173,14 @@ struct MmaPipelineBase
         return std::make_tuple(
             preApplyTransform<InternalAVecT, ATransform>(std::forward<ATransformInputs>(a)),
             preApplyTransform<InternalBVecT, BTransform>(std::forward<BTransformInputs>(b)),
-            preApplyTransform<InternalCVecT, CTransform>(std::forward<CTransformInputs>(accum)));
+            preApplyTransform<InternalCVecT, CTransform>(std::forward<CTransformInputs>(accum)),
+            std::forward<ExtraArgs>(extras)...);
     }
 
-    template <typename ATransformResult, typename BTransformResult, typename CTransformResult>
-    CK_TILE_DEVICE static decltype(auto)
-    applyTransformToOutput(std::tuple<ATransformResult, BTransformResult, CTransformResult>&& vecs)
+    template <typename... TupleArgs>
+    CK_TILE_DEVICE static decltype(auto) applyTransformToOutput(std::tuple<TupleArgs...>&& vecs)
     {
-        auto&& [a_result, b_result, c_result] = vecs;
+        auto&& c_result = std::get<2>(vecs);
         static_assert(!is_tuple<decltype(c_result)>::value,
                       "If CTransform returns more than the vector, update this function.");
 
@@ -199,6 +204,38 @@ struct MmaPipelineBase
 
             Derived::execImpl(transformed_inputs);
 
+            return applyTransformToOutput(std::move(transformed_inputs));
+        }
+        else
+        {
+            // Return the unsupported exec. This should print a runtime warning. (amdgcn_mma.hpp)
+            // Code should not reach here, but HOST/DEVICE compile passes are
+            // weirdly intertwined and instead of having constexpr in the calling
+            // site (tests) we do this. See also changes by this commit.
+            return Derived::MmaOp::exec({}, {}, {});
+        }
+    }
+
+    template <typename VecTA,
+              typename VecTB,
+              typename VecTC,
+              typename ScaleADataType,
+              typename ScaleBDataType>
+    CK_TILE_DEVICE static decltype(auto)
+    exec(VecTA&& a, VecTB&& b, VecTC&& accum, ScaleADataType&& scale_A, ScaleBDataType&& scale_B)
+    {
+        if constexpr(MmaOpTraits<typename Derived::MmaOp>::IsSupported)
+        {
+            // TODO: c++20: Call template functions with MmaPipelineOptionFlags directly
+            auto transformed_inputs = applyTransformsToInputs(
+                hasFlag<MmaPipelineOptionFlag::C_TRANSPOSE>() ? std::forward<VecTB>(b)
+                                                              : std::forward<VecTA>(a),
+                hasFlag<MmaPipelineOptionFlag::C_TRANSPOSE>() ? std::forward<VecTA>(a)
+                                                              : std::forward<VecTB>(b),
+                std::forward<VecTC>(accum),
+                std::forward<ScaleADataType>(scale_A),
+                std::forward<ScaleBDataType>(scale_B));
+            Derived::execImpl(transformed_inputs);
             return applyTransformToOutput(std::move(transformed_inputs));
         }
         else

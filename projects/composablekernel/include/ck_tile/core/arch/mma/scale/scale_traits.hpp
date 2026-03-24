@@ -51,20 +51,13 @@ struct TypeToFlagValue<pk_fp4_t> // e2m1
 template <typename T>
 inline constexpr std::uint8_t TypeToFlagValue_v = TypeToFlagValue<T>::value;
 
-template <typename ADataType,
-          typename BDataType,
-          std::uint8_t ScaleA,
-          std::uint8_t ScaleB,
-          std::uint8_t OPSELA = 0,
-          std::uint8_t OPSELB = 0>
+template <typename ADataType, typename BDataType, std::uint8_t OPSELA = 0, std::uint8_t OPSELB = 0>
 struct DefaultScaleMfmaCtrlFlags
 {
     static constexpr std::uint8_t type_A  = TypeToFlagValue_v<ADataType>;
     static constexpr std::uint8_t type_B  = TypeToFlagValue_v<BDataType>;
     static constexpr std::uint8_t OPSEL_A = OPSELA;
-    static constexpr std::uint8_t scale_A = ScaleA;
     static constexpr std::uint8_t OPSEL_B = OPSELB;
-    static constexpr std::uint8_t scale_B = ScaleB;
 };
 
 #if CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
@@ -79,9 +72,7 @@ concept ScaleMfmaCtrlFlags = requires(CtrlFlags ctrlFlags) {
     { CtrlFlags::type_A } -> std::convertible_to<int>;
     { CtrlFlags::type_B } -> std::convertible_to<int>;
     { CtrlFlags::OPSEL_A } -> std::convertible_to<int>;
-    { CtrlFlags::scale_A } -> std::convertible_to<int>;
     { CtrlFlags::OPSEL_B } -> std::convertible_to<int>;
-    { CtrlFlags::scale_B } -> std::convertible_to<int>;
 };
 
 #endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER

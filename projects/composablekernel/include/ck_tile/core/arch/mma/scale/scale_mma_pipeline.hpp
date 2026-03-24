@@ -61,11 +61,16 @@ struct ScaleMmaPipeline : public MmaPipelineBase<static_cast<int>(MmaPipelineOpt
     using CTransform = typename MmaTransforms::CTransform;
     using DTransform = typename MmaTransforms::DTransform;
 
-    template <typename VecTA, typename VecTB, typename VecTC>
-    CK_TILE_DEVICE static void execImpl(std::tuple<VecTA, VecTB, VecTC>& vecs)
+    template <typename VecTA,
+              typename VecTB,
+              typename VecTC,
+              typename ScaleADataType,
+              typename ScaleBDataType>
+    CK_TILE_DEVICE static void
+    execImpl(std::tuple<VecTA, VecTB, VecTC, ScaleADataType, ScaleBDataType>& vecs)
     {
-        auto& [a_vec, b_vec, c_vec] = vecs;
-        c_vec                         = MmaOp::exec(a_vec, b_vec, c_vec);
+        auto& [a_vec, b_vec, c_vec, scale_A, scale_B] = vecs;
+        c_vec = MmaOp::exec(a_vec, b_vec, c_vec, scale_A, scale_B);
     }
 };
 

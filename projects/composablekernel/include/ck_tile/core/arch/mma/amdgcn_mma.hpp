@@ -220,7 +220,7 @@ concept MmaOpI = requires(MmaOp op) {
     { MmaOp::kCMPerLane } -> std::convertible_to<unsigned int>;
     { MmaOp::kCMNumAccess } -> std::convertible_to<unsigned int>;
     { MmaOp::kCompressionRatio } -> std::convertible_to<unsigned int>;
-} && (HasExecSignature<MmaOp> || HasExecSignature<MmaOp, int>);
+} && (HasExecSignature<MmaOp> || HasExecSignature<MmaOp, int> || HasExecSignature<MmaOp, int, int>);
 
 #endif // CK_TILE_CONCEPTS && CK_TILE_CONCEPTS_HEADER
 
