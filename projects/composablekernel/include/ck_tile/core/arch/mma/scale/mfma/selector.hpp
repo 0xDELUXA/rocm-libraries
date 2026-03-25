@@ -112,13 +112,13 @@ struct MmaDefaultSelector<ADataType,
                                                                16u,
                                                                128u,
                                                                CompilerTarget>::SelectedOp;
-    // using CandidateOp32x32 = typename ScaleMfmaDefaultSelector<ADataType,
-    //                                                            BDataType,
-    //                                                            CDataType,
-    //                                                            32u,
-    //                                                            32u,
-    //                                                            64u,
-    //                                                            CompilerTarget>::SelectedOp;
+    using CandidateOp32x32 = typename ScaleMfmaDefaultSelector<ADataType,
+                                                               BDataType,
+                                                               CDataType,
+                                                               32u,
+                                                               32u,
+                                                               64u,
+                                                               CompilerTarget>::SelectedOp;
 
     // Default operation triggers pass-through
     using DefaultOp = typename ScaleMfmaDefaultSelector<ADataType,
@@ -134,16 +134,16 @@ struct MmaDefaultSelector<ADataType,
     static constexpr bool IsSupported16x16 =
         MmaOpTraits<CandidateOp16x16>::IsSupported && (WaveTileM % CandidateOp16x16::kM == 0u) &&
         (WaveTileN % CandidateOp16x16::kN == 0u) && (WaveTileK % CandidateOp16x16::kK == 0u);
-    // static constexpr bool IsSupported32x32 =
-    //     MmaOpTraits<CandidateOp32x32>::IsSupported && (WaveTileM % CandidateOp32x32::kM == 0u) &&
-    //     (WaveTileN % CandidateOp32x32::kN == 0u) && (WaveTileK % CandidateOp32x32::kK == 0u);
+    static constexpr bool IsSupported32x32 =
+        MmaOpTraits<CandidateOp32x32>::IsSupported && (WaveTileM % CandidateOp32x32::kM == 0u) &&
+        (WaveTileN % CandidateOp32x32::kN == 0u) && (WaveTileK % CandidateOp32x32::kK == 0u);
 
     public:
     // Select the largest supported MFMA operation for the given fragment shape
     using SelectedOp =
-        // std::conditional_t<IsSupported32x32,
-        //                    CandidateOp32x32,
-        std::conditional_t<IsSupported16x16, CandidateOp16x16, DefaultOp>;
+        std::conditional_t<IsSupported32x32,
+                           CandidateOp32x32,
+                           std::conditional_t<IsSupported16x16, CandidateOp16x16, DefaultOp>>;
 };
 
 } // namespace ck_tile::core::arch::mma
