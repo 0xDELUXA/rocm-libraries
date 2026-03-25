@@ -70,7 +70,6 @@ set(__clang_cxx_compile_options
     -Wno-unused-command-line-argument
     -Wno-weak-vtables
     -Wno-covered-switch-default
-    -Wno-unused-result
     -Wno-unsafe-buffer-usage
     -Wno-deprecated-declarations
     -Wno-shadow-uncaptured-local
@@ -104,11 +103,11 @@ set(__clang_cxx_compile_options
     -Wno-enum-constexpr-conversion
     -Wno-unused-parameter
     -Wmissing-noreturn
-    -Wno-nrvo
     -Wno-lifetime-safety
     -Wno-lifetime-safety-suggestion
     -Wno-lifetime-safety-intra-tu-suggestions
     -Wno-lifetime-safety-cross-tu-suggestions)
+    
 if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang" AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL "19")
     list(APPEND __clang_cxx_compile_options
         -Wno-unique-object-duplication

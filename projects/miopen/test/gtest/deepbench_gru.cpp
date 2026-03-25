@@ -71,7 +71,7 @@ std::vector<std::string> GetTestCases(const std::string& precision)
     std::string commonFlags =
         " --num-layers 1 --in-mode 1 --bias-mode 0 -dir-mode 0 --rnn-mode 0 --flat-batch-fill";
 
-    const std::vector<std::string> test_cases = {
+    return std::vector<std::string>{
         // clang-format off
     {precision + " --batch-size 32 --seq-len 1500 --vector-len 216 --hidden-size 216" + commonFlags},
     {precision + " --batch-size 32 --seq-len 750 --vector-len 286 --hidden-size 286" + commonFlags},
@@ -90,8 +90,6 @@ std::vector<std::string> GetTestCases(const std::string& precision)
     {precision + " --batch-size 64 --seq-len 50 --vector-len 1024 --hidden-size 1024" + commonFlags}
         // clang-format on
     };
-
-    return test_cases;
 }
 
 } // namespace deepbench_gru
