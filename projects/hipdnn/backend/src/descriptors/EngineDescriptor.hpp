@@ -49,6 +49,14 @@ private:
                      int64_t* elementCount,
                      void* arrayOfElements) const;
 
+    void getKnobInfoDescriptors(hipdnnBackendAttributeType_t attributeType,
+                                int64_t requestedElementCount,
+                                int64_t* elementCount,
+                                void* arrayOfElements) const;
+
+    /// Lazily populated by getKnobInfoDescriptors() from _knobSerializedBuffers.
+    mutable std::vector<std::shared_ptr<IBackendDescriptor>> _knobDescriptors;
+
 public:
     void finalize() override;
 

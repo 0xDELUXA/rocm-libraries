@@ -4,6 +4,8 @@
 #include "HipdnnBackendFlatbufferData.h"
 #include "TestUtil.hpp"
 #include "hipdnn_backend.h"
+#include <array>
+#include <cstring>
 #include <gtest/gtest.h>
 #include <hipdnn_data_sdk/data_objects/engine_config_generated.h>
 #include <hipdnn_data_sdk/data_objects/knob_value_generated.h>
@@ -1106,4 +1108,267 @@ TEST_F(IntegrationConstraintValidationApi, MixedValidAndInvalidKnobs)
     {
         hipdnnBackendDestroyDescriptor(executionPlan);
     }
+}
+
+// =============================================================================
+// Engine Knob Info via Descriptor API (HIPDNN_ATTR_ENGINE_KNOB_INFO)
+// =============================================================================
+
+TEST_F(IntegrationKnobsApi, GetKnobInfoDescriptorCount)
+{
+    createFinalizedEngine();
+
+    int64_t knobCount = -1;
+    EXPECT_EQ(hipdnnBackendGetAttribute(_engine,
+                                        HIPDNN_ATTR_ENGINE_KNOB_INFO,
+                                        HIPDNN_TYPE_BACKEND_DESCRIPTOR,
+                                        0,
+                                        &knobCount,
+                                        nullptr),
+              HIPDNN_STATUS_SUCCESS);
+
+    EXPECT_EQ(knobCount, 5);
+}
+
+TEST_F(IntegrationKnobsApi, GetKnobInfoDescriptorsAndValidateIntKnob)
+{
+    createFinalizedEngine();
+
+    // Get count
+    int64_t knobCount = 0;
+    ASSERT_EQ(hipdnnBackendGetAttribute(_engine,
+                                        HIPDNN_ATTR_ENGINE_KNOB_INFO,
+                                        HIPDNN_TYPE_BACKEND_DESCRIPTOR,
+                                        0,
+                                        &knobCount,
+                                        nullptr),
+              HIPDNN_STATUS_SUCCESS);
+    ASSERT_EQ(knobCount, 5);
+
+    // Get descriptors
+    std::vector<hipdnnBackendDescriptor_t> knobDescs(static_cast<size_t>(knobCount));
+    int64_t returnedCount = 0;
+    ASSERT_EQ(hipdnnBackendGetAttribute(_engine,
+                                        HIPDNN_ATTR_ENGINE_KNOB_INFO,
+                                        HIPDNN_TYPE_BACKEND_DESCRIPTOR,
+                                        knobCount,
+                                        &returnedCount,
+                                        static_cast<void*>(knobDescs.data())),
+              HIPDNN_STATUS_SUCCESS);
+    EXPECT_EQ(returnedCount, 5);
+
+    // Find the int knob and validate its attributes
+    bool foundIntKnob = false;
+    for(size_t i = 0; i < static_cast<size_t>(returnedCount); ++i)
+    {
+        ASSERT_NE(knobDescs[i], nullptr);
+
+        // Read knob ID
+        std::array<char, 256> knobId = {};
+        int64_t idLen = 0;
+        ASSERT_EQ(hipdnnBackendGetAttribute(knobDescs[i],
+                                            HIPDNN_ATTR_KNOB_INFO_TYPE_EXT,
+                                            HIPDNN_TYPE_CHAR,
+                                            static_cast<int64_t>(knobId.size()),
+                                            &idLen,
+                                            knobId.data()),
+                  HIPDNN_STATUS_SUCCESS);
+
+        // idLen includes the null terminator, use string comparison
+        if(std::string(knobId.data()) == "test.int_knob")
+        {
+            foundIntKnob = true;
+
+            // Verify default value type
+            int64_t valueType = 0;
+            int64_t vtCount = 0;
+            EXPECT_EQ(hipdnnBackendGetAttribute(knobDescs[i],
+                                                HIPDNN_ATTR_KNOB_INFO_DEFAULT_VALUE_TYPE_EXT,
+                                                HIPDNN_TYPE_INT64,
+                                                1,
+                                                &vtCount,
+                                                &valueType),
+                      HIPDNN_STATUS_SUCCESS);
+            EXPECT_EQ(valueType, static_cast<int64_t>(HIPDNN_TYPE_INT64));
+
+            // Verify default value
+            int64_t defaultVal = 0;
+            int64_t dvCount = 0;
+            EXPECT_EQ(hipdnnBackendGetAttribute(knobDescs[i],
+                                                HIPDNN_ATTR_KNOB_INFO_DEFAULT_VALUE_EXT,
+                                                HIPDNN_TYPE_INT64,
+                                                1,
+                                                &dvCount,
+                                                &defaultVal),
+                      HIPDNN_STATUS_SUCCESS);
+            EXPECT_EQ(defaultVal, 50);
+
+            // Verify min/max
+            int64_t minVal = 0;
+            int64_t minCount = 0;
+            EXPECT_EQ(hipdnnBackendGetAttribute(knobDescs[i],
+                                                HIPDNN_ATTR_KNOB_INFO_MINIMUM_VALUE_EXT,
+                                                HIPDNN_TYPE_INT64,
+                                                1,
+                                                &minCount,
+                                                &minVal),
+                      HIPDNN_STATUS_SUCCESS);
+            EXPECT_EQ(minVal, 0);
+
+            int64_t maxVal = 0;
+            int64_t maxCount = 0;
+            EXPECT_EQ(hipdnnBackendGetAttribute(knobDescs[i],
+                                                HIPDNN_ATTR_KNOB_INFO_MAXIMUM_VALUE_EXT,
+                                                HIPDNN_TYPE_INT64,
+                                                1,
+                                                &maxCount,
+                                                &maxVal),
+                      HIPDNN_STATUS_SUCCESS);
+            EXPECT_EQ(maxVal, 100);
+
+            // Verify stride
+            int64_t stride = 0;
+            int64_t strideCount = 0;
+            EXPECT_EQ(hipdnnBackendGetAttribute(knobDescs[i],
+                                                HIPDNN_ATTR_KNOB_INFO_STRIDE_EXT,
+                                                HIPDNN_TYPE_INT64,
+                                                1,
+                                                &strideCount,
+                                                &stride),
+                      HIPDNN_STATUS_SUCCESS);
+            EXPECT_EQ(stride, 10);
+
+            break;
+        }
+    }
+    EXPECT_TRUE(foundIntKnob) << "Integer knob 'test.int_knob' not found via descriptor API";
+
+    // Cleanup
+    for(auto& desc : knobDescs)
+    {
+        if(desc != nullptr)
+        {
+            hipdnnBackendDestroyDescriptor(desc);
+        }
+    }
+}
+
+// =============================================================================
+// Engine Config Knob Choices Read-Back (HIPDNN_ATTR_ENGINECFG_KNOB_CHOICES)
+// =============================================================================
+
+TEST_F(IntegrationKnobsApi, GetKnobChoicesFromEngineConfigZeroWhenNoneSet)
+{
+    createFinalizedEngineConfig();
+
+    int64_t choiceCount = -1;
+    EXPECT_EQ(hipdnnBackendGetAttribute(_engineConfig,
+                                        HIPDNN_ATTR_ENGINECFG_KNOB_CHOICES,
+                                        HIPDNN_TYPE_BACKEND_DESCRIPTOR,
+                                        0,
+                                        &choiceCount,
+                                        nullptr),
+              HIPDNN_STATUS_SUCCESS);
+
+    EXPECT_EQ(choiceCount, 0);
+}
+
+TEST_F(IntegrationKnobsApi, GetKnobChoicesRoundTrip)
+{
+    createFinalizedEngine();
+
+    // Create engine config (without finalizing yet)
+    ASSERT_EQ(hipdnnBackendCreateDescriptor(HIPDNN_BACKEND_ENGINECFG_DESCRIPTOR, &_engineConfig),
+              HIPDNN_STATUS_SUCCESS);
+
+    ASSERT_EQ(hipdnnBackendSetAttribute(_engineConfig,
+                                        HIPDNN_ATTR_ENGINECFG_ENGINE,
+                                        HIPDNN_TYPE_BACKEND_DESCRIPTOR,
+                                        1,
+                                        static_cast<const void*>(&_engine)),
+              HIPDNN_STATUS_SUCCESS);
+
+    // Create a knob setting descriptor
+    hipdnnBackendDescriptor_t knobSettingDesc = nullptr;
+    ASSERT_EQ(
+        hipdnnBackendCreateDescriptor(HIPDNN_BACKEND_KNOB_CHOICE_DESCRIPTOR, &knobSettingDesc),
+        HIPDNN_STATUS_SUCCESS);
+
+    const char* knobId = "test.int_knob";
+    ASSERT_EQ(hipdnnBackendSetAttribute(knobSettingDesc,
+                                        HIPDNN_ATTR_KNOB_CHOICE_KNOB_TYPE_EXT,
+                                        HIPDNN_TYPE_CHAR,
+                                        static_cast<int64_t>(strlen(knobId)),
+                                        knobId),
+              HIPDNN_STATUS_SUCCESS);
+
+    int64_t knobValue = 40;
+    ASSERT_EQ(hipdnnBackendSetAttribute(knobSettingDesc,
+                                        HIPDNN_ATTR_KNOB_CHOICE_KNOB_VALUE_EXT,
+                                        HIPDNN_TYPE_INT64,
+                                        1,
+                                        &knobValue),
+              HIPDNN_STATUS_SUCCESS);
+
+    ASSERT_EQ(hipdnnBackendFinalize(knobSettingDesc), HIPDNN_STATUS_SUCCESS);
+
+    // Apply knob choice to engine config
+    ASSERT_EQ(hipdnnBackendSetAttribute(_engineConfig,
+                                        HIPDNN_ATTR_ENGINECFG_KNOB_CHOICES,
+                                        HIPDNN_TYPE_BACKEND_DESCRIPTOR,
+                                        1,
+                                        static_cast<const void*>(&knobSettingDesc)),
+              HIPDNN_STATUS_SUCCESS);
+
+    ASSERT_EQ(hipdnnBackendFinalize(_engineConfig), HIPDNN_STATUS_SUCCESS);
+
+    // Now read back the knob choices
+    int64_t choiceCount = -1;
+    ASSERT_EQ(hipdnnBackendGetAttribute(_engineConfig,
+                                        HIPDNN_ATTR_ENGINECFG_KNOB_CHOICES,
+                                        HIPDNN_TYPE_BACKEND_DESCRIPTOR,
+                                        0,
+                                        &choiceCount,
+                                        nullptr),
+              HIPDNN_STATUS_SUCCESS);
+    ASSERT_EQ(choiceCount, 1);
+
+    hipdnnBackendDescriptor_t readBackDesc = nullptr;
+    int64_t readBackCount = 0;
+    ASSERT_EQ(hipdnnBackendGetAttribute(_engineConfig,
+                                        HIPDNN_ATTR_ENGINECFG_KNOB_CHOICES,
+                                        HIPDNN_TYPE_BACKEND_DESCRIPTOR,
+                                        1,
+                                        &readBackCount,
+                                        static_cast<void*>(&readBackDesc)),
+              HIPDNN_STATUS_SUCCESS);
+    ASSERT_EQ(readBackCount, 1);
+    ASSERT_NE(readBackDesc, nullptr);
+
+    // Verify the read-back knob setting matches
+    std::array<char, 256> readId = {};
+    int64_t readIdLen = 0;
+    EXPECT_EQ(hipdnnBackendGetAttribute(readBackDesc,
+                                        HIPDNN_ATTR_KNOB_CHOICE_KNOB_TYPE_EXT,
+                                        HIPDNN_TYPE_CHAR,
+                                        static_cast<int64_t>(readId.size()),
+                                        &readIdLen,
+                                        readId.data()),
+              HIPDNN_STATUS_SUCCESS);
+    // readIdLen includes the null terminator
+    EXPECT_STREQ(readId.data(), "test.int_knob");
+
+    int64_t readValue = 0;
+    int64_t readValueCount = 0;
+    EXPECT_EQ(hipdnnBackendGetAttribute(readBackDesc,
+                                        HIPDNN_ATTR_KNOB_CHOICE_KNOB_VALUE_EXT,
+                                        HIPDNN_TYPE_INT64,
+                                        1,
+                                        &readValueCount,
+                                        &readValue),
+              HIPDNN_STATUS_SUCCESS);
+    EXPECT_EQ(readValue, 40);
+
+    hipdnnBackendDestroyDescriptor(readBackDesc);
+    hipdnnBackendDestroyDescriptor(knobSettingDesc);
 }

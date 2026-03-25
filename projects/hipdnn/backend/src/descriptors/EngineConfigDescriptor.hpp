@@ -43,6 +43,14 @@ private:
                                   int64_t elementCount,
                                   const void* arrayOfElements);
 
+    void getKnobChoices(hipdnnBackendAttributeType_t attributeType,
+                        int64_t requestedElementCount,
+                        int64_t* elementCount,
+                        void* arrayOfElements) const;
+
+    /// Lazily populated by getKnobChoices() from _engineConfigData->knobs.
+    mutable std::vector<std::shared_ptr<IBackendDescriptor>> _knobChoiceDescriptors;
+
 public:
     EngineConfigDescriptor();
     static constexpr int64_t INVALID_WORKSPACE_SIZE = -1;

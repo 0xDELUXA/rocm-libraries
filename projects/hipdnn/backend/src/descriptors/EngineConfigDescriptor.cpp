@@ -3,6 +3,7 @@
 
 #include "EngineConfigDescriptor.hpp"
 #include "BackendEnumStringUtils.hpp"
+#include "DescriptorAttributeUtils.hpp"
 #include "EngineDescriptor.hpp"
 #include "GraphDescriptor.hpp"
 #include "HipdnnBackendDescriptorType.h"
@@ -70,8 +71,10 @@ void EngineConfigDescriptor::getAttribute(hipdnnBackendAttributeName_t attribute
     case HIPDNN_ATTR_ENGINECFG_WORKSPACE_SIZE:
         getMaxWorkspaceSize(attributeType, requestedElementCount, elementCount, arrayOfElements);
         break;
-    case HIPDNN_ATTR_ENGINECFG_INTERMEDIATE_INFO:
     case HIPDNN_ATTR_ENGINECFG_KNOB_CHOICES:
+        getKnobChoices(attributeType, requestedElementCount, elementCount, arrayOfElements);
+        break;
+    case HIPDNN_ATTR_ENGINECFG_INTERMEDIATE_INFO:
     default:
         throw HipdnnException(
             HIPDNN_STATUS_NOT_SUPPORTED,
@@ -321,6 +324,111 @@ void EngineConfigDescriptor::setKnobSettingDescriptor(hipdnnBackendAttributeType
                            + std::to_string(i) + " is not finalized.");
 
         _engineConfigData->knobs.push_back(knobDesc->toKnobSettingT());
+    }
+}
+
+void EngineConfigDescriptor::getKnobChoices(hipdnnBackendAttributeType_t attributeType,
+                                            int64_t requestedElementCount,
+                                            int64_t* elementCount,
+                                            void* arrayOfElements) const
+{
+    checkGetArgs(HIPDNN_TYPE_BACKEND_DESCRIPTOR,
+                 attributeType,
+                 "EngineConfigDescriptor::getAttribute(HIPDNN_ATTR_ENGINECFG_KNOB_CHOICES)");
+
+    // Lazily build KnobSettingDescriptor objects from _engineConfigData->knobs.
+    if(_knobChoiceDescriptors.empty() && _engineConfigData && !_engineConfigData->knobs.empty())
+    {
+        for(const auto& knobSettingT : _engineConfigData->knobs)
+        {
+            auto knobSettingDesc = std::make_shared<KnobSettingDescriptor>();
+
+            // Set knob ID (include null terminator)
+            knobSettingDesc->setAttribute(HIPDNN_ATTR_KNOB_CHOICE_KNOB_TYPE_EXT,
+                                          HIPDNN_TYPE_CHAR,
+                                          static_cast<int64_t>(knobSettingT->knob_id.size() + 1),
+                                          knobSettingT->knob_id.c_str());
+
+            // Set value based on type
+            switch(knobSettingT->value.type)
+            {
+            case hipdnn_data_sdk::data_objects::KnobValue::IntValue:
+            {
+                auto val = knobSettingT->value.AsIntValue()->value;
+                knobSettingDesc->setAttribute(
+                    HIPDNN_ATTR_KNOB_CHOICE_KNOB_VALUE_EXT, HIPDNN_TYPE_INT64, 1, &val);
+                break;
+            }
+            case hipdnn_data_sdk::data_objects::KnobValue::FloatValue:
+            {
+                auto val = knobSettingT->value.AsFloatValue()->value;
+                knobSettingDesc->setAttribute(
+                    HIPDNN_ATTR_KNOB_CHOICE_KNOB_VALUE_EXT, HIPDNN_TYPE_DOUBLE, 1, &val);
+                break;
+            }
+            case hipdnn_data_sdk::data_objects::KnobValue::StringValue:
+            {
+                const auto& val = knobSettingT->value.AsStringValue()->value;
+                knobSettingDesc->setAttribute(HIPDNN_ATTR_KNOB_CHOICE_KNOB_VALUE_EXT,
+                                              HIPDNN_TYPE_CHAR,
+                                              static_cast<int64_t>(val.size()),
+                                              val.c_str());
+                break;
+            }
+            default:
+                continue;
+            }
+
+            knobSettingDesc->finalize();
+            _knobChoiceDescriptors.push_back(std::move(knobSettingDesc));
+        }
+    }
+
+    auto count = static_cast<int64_t>(_knobChoiceDescriptors.size());
+
+    if(arrayOfElements == nullptr || requestedElementCount == 0)
+    {
+        THROW_IF_NULL(elementCount,
+                      HIPDNN_STATUS_BAD_PARAM_NULL_POINTER,
+                      "EngineConfigDescriptor::getAttribute(HIPDNN_ATTR_ENGINECFG_KNOB_CHOICES): "
+                      "elementCount is null");
+        *elementCount = count;
+        return;
+    }
+
+    THROW_IF_FALSE(requestedElementCount >= count,
+                   HIPDNN_STATUS_BAD_PARAM,
+                   "EngineConfigDescriptor::getAttribute(HIPDNN_ATTR_ENGINECFG_KNOB_CHOICES): "
+                   "requestedElementCount < knob choices count");
+
+    if(elementCount != nullptr)
+    {
+        *elementCount = count;
+    }
+
+    auto outputArray = static_cast<HipdnnBackendDescriptor**>(arrayOfElements);
+
+    std::vector<HipdnnBackendDescriptor*> packed;
+    packed.reserve(_knobChoiceDescriptors.size());
+    try
+    {
+        for(const auto& desc : _knobChoiceDescriptors)
+        {
+            packed.push_back(HipdnnBackendDescriptor::packDescriptor(desc));
+        }
+    }
+    catch(...)
+    {
+        for(auto* p : packed)
+        {
+            delete p;
+        }
+        throw;
+    }
+
+    for(size_t i = 0; i < packed.size(); ++i)
+    {
+        outputArray[i] = packed[i];
     }
 }
 

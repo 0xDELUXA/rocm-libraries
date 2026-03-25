@@ -95,6 +95,8 @@
 #include <hipdnn_frontend/detail/GraphPacker.hpp>
 #include <hipdnn_frontend/detail/GraphUnpacker.hpp>
 #include <hipdnn_frontend/detail/KnobPacker.hpp>
+#include <hipdnn_frontend/detail/KnobSettingUnpacker.hpp>
+#include <hipdnn_frontend/detail/KnobUnpacker.hpp>
 #include <hipdnn_frontend/detail/OperationUnpacker.hpp>
 #include <hipdnn_frontend/detail/ScopedHipdnnBackendDescriptor.hpp>
 #include <hipdnn_frontend/knob/Knob.hpp>
@@ -243,6 +245,29 @@ private:
         gatherHipdnnTensorsSubtree(allTensors);
         auto usedIds = getUsedIds(allTensors);
         populateHipdnnTensorIds(allTensors, usedIds);
+    }
+
+    /// Assigns the graph's io_data_type to any tensor that has NOT_SET data type.
+    /// The descriptor path requires explicit data types on each tensor, whereas
+    /// the flatbuffer path defers type inference to the backend.
+    void assignUnsetTensorDataTypes()
+    {
+        auto ioType = graph_attributes.get_io_data_type();
+        if(ioType == DataType::NOT_SET)
+        {
+            return;
+        }
+
+        std::unordered_set<std::shared_ptr<TensorAttributes>> allTensors;
+        gatherHipdnnTensorsSubtree(allTensors);
+
+        for(auto& tensor : allTensors)
+        {
+            if(tensor && tensor->get_data_type() == DataType::NOT_SET)
+            {
+                tensor->set_data_type(ioType);
+            }
+        }
     }
 
     static std::shared_ptr<TensorAttributes> outputTensor(const std::string& name)
@@ -840,6 +865,7 @@ protected:
                            << graph_attributes.get_name());
 
         assignUnsetTensorUids();
+        assignUnsetTensorDataTypes();
 
         if(!_preferredEngineId.has_value())
         {
@@ -911,6 +937,12 @@ public:
         HIPDNN_CHECK_ERROR(hipdnn_frontend::detail::createEngineDescriptorForGraph(
             engineDesc, _graphDesc->get(), engineId));
 
+        if(useDescriptorApi())
+        {
+            HIPDNN_FE_LOG_INFO("Using descriptor-based API for knob retrieval");
+            return detail::unpackKnobsFromDescriptors(engineDesc.get(), knobs);
+        }
+
         HIPDNN_CHECK_ERROR(hipdnn_frontend::detail::getKnobsForEngine(knobs, engineDesc.get()));
 
         return {ErrorCode::OK, ""};
@@ -945,6 +977,32 @@ public:
         }
 
         return {ErrorCode::OK, ""};
+    }
+
+    /**
+     * @brief Get the applied knob settings from the current engine config
+     *
+     * Reads back the knob settings that were applied to the engine config
+     * descriptor via create_execution_plan_ext().
+     *
+     * @param settings Output vector of KnobSetting objects
+     * @return ErrorCode::OK on success, or ErrorCode::HIPDNN_BACKEND_ERROR
+     *         if no engine config has been created. Call get_message() for the
+     *         specific failure reason.
+     *
+     * @see create_execution_plan_ext(), hipdnn_frontend::KnobSetting
+     */
+    // NOLINTNEXTLINE(readability-identifier-naming)
+    Error get_applied_knob_settings(std::vector<KnobSetting>& settings) const
+    {
+        if(!_engineConfigDesc || !_engineConfigDesc->valid())
+        {
+            return {ErrorCode::HIPDNN_BACKEND_ERROR,
+                    "Engine config has not been created. Cannot get applied knob settings."};
+        }
+
+        return detail::unpackKnobSettingsFromDescriptor(
+            _engineConfigDesc->get(), HIPDNN_ATTR_ENGINECFG_KNOB_CHOICES, settings);
     }
 
     /**
