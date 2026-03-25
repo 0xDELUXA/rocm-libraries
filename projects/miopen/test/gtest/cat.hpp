@@ -169,7 +169,8 @@ protected:
     {
         auto error = miopen::rms_range(ref_output, output);
         EXPECT_TRUE(miopen::range_distance(ref_output) == miopen::range_distance(output));
-        EXPECT_TRUE(error == 0) << "Outputs do not match each other. Error:" << error;
+        EXPECT_TRUE(miopen::float_equal(error, 0.f))
+            << "Outputs do not match each other. Error:" << error;
     }
     CatTestCase cat_config;
 

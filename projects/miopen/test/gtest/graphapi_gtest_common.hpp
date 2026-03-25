@@ -27,6 +27,7 @@
 
 #include <miopen/graphapi/tensor.hpp>
 #include <miopen/miopen.h>
+#include <miopen/float_equal.hpp>
 
 #include <algorithm>
 #include <cassert>
@@ -67,6 +68,18 @@ struct ValidatedValue
 
     friend void PrintTo(const ValidatedValue& v, std::ostream* os) { *os << v.value; }
 };
+
+template <class T, std::enable_if_t<!std::is_floating_point_v<T>, bool> = true>
+bool equal_values(T const& lhs, T const& rhs)
+{
+    return lhs == rhs;
+}
+
+template <class T, std::enable_if_t<std::is_floating_point_v<T>, bool> = true>
+bool equal_values(T const& lhs, T const& rhs)
+{
+    return miopen::float_equal(lhs, rhs);
+}
 
 class GTestDescriptorAttribute
 {
@@ -202,7 +215,7 @@ public:
     virtual testing::AssertionResult isSetAndGotEqual() override
     {
         assert(this->mValues.size() == this->mReadValues.size());
-        if(this->mValues[0] == this->mReadValues[0])
+        if(equal_values(this->mValues[0], this->mReadValues[0]))
         {
             return testing::AssertionSuccess();
         }
