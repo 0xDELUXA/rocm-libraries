@@ -465,53 +465,72 @@ namespace rocRoller
             std::map<int, int> findAliasCandidatesForExtents(KernelGraph const&   kgraph,
                                                              std::list<TagExtent> extents)
             {
-
                 std::map<int, int> aliases;
-                bool               foundAny = true;
-                while(foundAny)
+                bool               foundForced = true;
+                while(foundForced)
                 {
-                    foundAny         = false;
-                    auto bestInner   = extents.end();
-                    auto bestOuter   = extents.end();
-                    int  minFitCount = std::numeric_limits<int>::max();
-                    for(auto inner = extents.begin(); inner != extents.end(); inner++)
+                    foundForced = false;
+                    for(auto inner = extents.begin(); inner != extents.end();)
                     {
-                        int  fitCount   = 0;
-                        auto firstOuter = extents.end();
+                        int  fitCount = 0;
+                        auto fitOuter = extents.end();
                         for(auto outer = extents.begin(); outer != extents.end(); outer++)
                         {
                             if(outer != inner && inner->fitsWithin(kgraph, *outer))
                             {
                                 fitCount++;
-                                if(fitCount == 1)
-                                    firstOuter = outer;
+                                fitOuter = outer;
+                                if(fitCount > 1)
+                                    break;
                             }
                         }
-                        if(fitCount > 0 && fitCount < minFitCount)
+                        if(fitCount == 1)
                         {
-                            minFitCount = fitCount;
-                            bestInner   = inner;
-                            bestOuter   = firstOuter;
-                            if(fitCount == 1)
-                                break;
+                            foundForced = true;
+                            AssertFatal(!aliases.contains(inner->baseTag));
+                            aliases[inner->baseTag] = fitOuter->baseTag;
+                            Log::debug("{} -> {} (forced)", inner->baseTag, fitOuter->baseTag);
+                            inner->validate(kgraph);
+                            fitOuter->merge(kgraph, *inner);
+                            fitOuter->validate(kgraph);
+                            Log::debug("merged {}", fitOuter->toString());
+                            inner = extents.erase(inner);
+                        }
+                        else
+                        {
+                            inner++;
                         }
                     }
-
-                    if(bestInner != extents.end() && bestOuter != extents.end())
-                    {
-                        foundAny = true;
-                        AssertFatal(!aliases.contains(bestInner->baseTag));
-                        aliases[bestInner->baseTag] = bestOuter->baseTag;
-                        Log::debug("{} -> {}", bestInner->baseTag, bestOuter->baseTag);
-                        bestInner->validate(kgraph);
-                        bestOuter->merge(kgraph, *bestInner);
-                        bestOuter->validate(kgraph);
-                        Log::debug("merged {}", bestOuter->toString());
-                        extents.erase(bestInner);
-                    }
                 }
-                Log::debug("{} aliases found.", aliases.size());
-                for(auto const& ext : extents)
+                bool foundAny = false;
+                do
+                {
+                    foundAny = false;
+                    for(auto outer = extents.begin(); outer != extents.end(); outer++)
+                    {
+                        for(auto inner = extents.begin(); inner != extents.end();)
+                        {
+                            if(outer != inner && inner->fitsWithin(kgraph, *outer))
+                            {
+                                foundAny = true;
+                                AssertFatal(!aliases.contains(inner->baseTag));
+                                aliases[inner->baseTag] = outer->baseTag;
+                                Log::debug("{} -> {}", inner->baseTag, outer->baseTag);
+                                inner->validate(kgraph);
+                                outer->merge(kgraph, *inner);
+                                outer->validate(kgraph);
+                                Log::debug("merged {}", outer->toString());
+                                inner = extents.erase(inner);
+                            }
+                            else
+                            {
+                                inner++;
+                            }
+                        }
+                    }
+                    Log::debug("{} aliases so far.", aliases.size());
+                } while(foundAny);
+                for(auto ext : extents)
                 {
                     Log::debug("{}\n{}", ext.toString(), ext.orderInfo(kgraph));
                     ext.validate(kgraph);
