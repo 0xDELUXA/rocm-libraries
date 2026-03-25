@@ -247,29 +247,6 @@ private:
         populateHipdnnTensorIds(allTensors, usedIds);
     }
 
-    /// Assigns the graph's io_data_type to any tensor that has NOT_SET data type.
-    /// The descriptor path requires explicit data types on each tensor, whereas
-    /// the flatbuffer path defers type inference to the backend.
-    void assignUnsetTensorDataTypes()
-    {
-        auto ioType = graph_attributes.get_io_data_type();
-        if(ioType == DataType::NOT_SET)
-        {
-            return;
-        }
-
-        std::unordered_set<std::shared_ptr<TensorAttributes>> allTensors;
-        gatherHipdnnTensorsSubtree(allTensors);
-
-        for(auto& tensor : allTensors)
-        {
-            if(tensor && tensor->get_data_type() == DataType::NOT_SET)
-            {
-                tensor->set_data_type(ioType);
-            }
-        }
-    }
-
     static std::shared_ptr<TensorAttributes> outputTensor(const std::string& name)
     {
         auto tensor = std::make_shared<TensorAttributes>();
@@ -865,7 +842,6 @@ protected:
                            << graph_attributes.get_name());
 
         assignUnsetTensorUids();
-        assignUnsetTensorDataTypes();
 
         if(!_preferredEngineId.has_value())
         {
