@@ -81,7 +81,7 @@ std::vector<std::string> GetTestCases(const std::string& precision)
     std::string no_dhx = " --no-dhx";
     std::string no_dhy = " --no-dhy";
 
-    const std::vector<std::string> test_cases = {
+    return std::vector<std::string>{
         // clang-format off
     			{commonFlags + dir0 + no_hx},
 		{commonFlags + dir0 + no_dhy},
@@ -99,8 +99,6 @@ std::vector<std::string> GetTestCases(const std::string& precision)
 		{commonFlags + dir1 + no_hx + no_dhy + no_hy + no_dhx}
         // clang-format on
     };
-
-    return test_cases;
 }
 
 } // namespace gru_extra
