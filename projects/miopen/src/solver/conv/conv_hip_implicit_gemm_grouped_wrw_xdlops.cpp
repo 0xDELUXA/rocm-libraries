@@ -375,6 +375,9 @@ bool PerformanceConfigHipImplicitGemmGroupWrwXdlops::SetNextValue(const ProblemD
         valid_kernels = loader.FillValidKernelsWithTf32Fallback(
             CKConvDirection::Wrw, problem, data_type, use_tf32);
 
+        if(valid_kernels.empty())
+            return false;
+
         assert(!valid_kernels.empty());
         return true;
     }

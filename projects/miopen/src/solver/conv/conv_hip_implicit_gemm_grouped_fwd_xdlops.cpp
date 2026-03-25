@@ -331,12 +331,23 @@ void PerformanceConfigHipImplicitGemmGroupFwdXdlops::HeuristicInit(
 }
 
 bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::SetNextValue(
-    [[maybe_unused]] const ProblemDescription& problem)
+    const ProblemDescription& problem)
 {
     if(valid_kernels.empty())
     {
-        // HeuristicInit should have been called before SetNextValue in the
-        // search path, populating valid_kernels via the loader.
+        const auto& loader = miopen::solver::CKGroupedConvLibLoader::Get(GetCurrentDeviceName());
+        if(!loader.IsLoaded())
+            return false;
+
+        auto data_type = problem.GetInDataType();
+        use_tf32       = (data_type == miopenFloat) && problem.UseTF32();
+
+        valid_kernels = loader.FillValidKernelsWithTf32Fallback(
+            CKConvDirection::Fwd, problem, data_type, use_tf32);
+
+        if(valid_kernels.empty())
+            return false;
+
         assert(!valid_kernels.empty());
         return true;
     }

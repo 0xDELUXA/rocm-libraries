@@ -73,10 +73,23 @@ const auto& GetTestParams()
 #endif
         auto p = miopen::unit_tests::UnitTestConvSolverParams(supportedDevices);
         p.Tunable(5);
+        p.UsesCKDynamicLib();
 
         return p;
     }();
     return params;
+}
+
+// Deterministic test case (for CPU deterministic applicability test)
+auto GetDeterministicConvCase()
+{
+    TestCase test_case = {
+        // clang-format off
+        TestCase {{1, 4, 8, 28, 28}, {4, 4, 3, 3, 3}, {0, 0, 0}, {1, 1, 1}, {1, 1, 1}, 1, true}
+        // clang-format on
+    };
+
+    return GetConvTestForGroupXdlops<miopenHalf>(miopenTensorNDHWC, std::move(test_case));
 }
 
 } // namespace
@@ -99,6 +112,8 @@ using GPU_UnitTestConvSolverImplicitGemm3DGroupBwdXdlops_TF32 =
                                                       miopenFloat>;
 
 using CPU_UnitTestConvSolverImplicitGemm3DGroupBwdXdlopsDevApplicability_FP16 =
+    CPU_UnitTestConvSolverDevApplicabilityBwd_NONE;
+using CPU_UnitTestConvSolverImplicitGemm3DGroupBwdXdlopsDeterministicApplicability_NONE =
     CPU_UnitTestConvSolverDevApplicabilityBwd_NONE;
 
 TEST_P(GPU_UnitTestConvSolverImplicitGemm3DGroupBwdXdlops_FP16, ConvHipImplicitGemm3DGroupBwdXdlops)
@@ -123,6 +138,12 @@ TEST_P(GPU_UnitTestConvSolverImplicitGemm3DGroupBwdXdlops_TF32, ConvHipImplicitG
 };
 
 TEST_P(CPU_UnitTestConvSolverImplicitGemm3DGroupBwdXdlopsDevApplicability_FP16,
+       ConvHipImplicitGemm3DGroupBwdXdlops)
+{
+    this->RunTest(miopen::solver::conv::ConvHipImplicitGemm3DGroupBwdXdlops{});
+};
+
+TEST_P(CPU_UnitTestConvSolverImplicitGemm3DGroupBwdXdlopsDeterministicApplicability_NONE,
        ConvHipImplicitGemm3DGroupBwdXdlops)
 {
     this->RunTest(miopen::solver::conv::ConvHipImplicitGemm3DGroupBwdXdlops{});
@@ -183,3 +204,9 @@ INSTANTIATE_TEST_SUITE_P(Smoke,
                          CPU_UnitTestConvSolverImplicitGemm3DGroupBwdXdlopsDevApplicability_FP16,
                          testing::Combine(testing::Values(GetTestParams<TestDataType::FP16>()),
                                           testing::Values(GetDevApplicabilityConvCase())));
+
+INSTANTIATE_TEST_SUITE_P(
+    Smoke,
+    CPU_UnitTestConvSolverImplicitGemm3DGroupBwdXdlopsDeterministicApplicability_NONE,
+    testing::Combine(testing::Values(GetTestParams<TestDataType::FP16>()),
+                     testing::Values(GetDeterministicConvCase())));
