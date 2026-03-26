@@ -169,8 +169,8 @@ bool PerformanceConfigHipImplicitGemmGroupBwdXdlops::RunParameterPredictionModel
         return false;
 
     InitHeuristicKernelIDs();
-    const auto arch      = ctx.GetStream().GetDeviceName();
-    std::string solver   = "ConvHipIgemmGroupBwdXdlops";
+    const auto arch    = ctx.GetStream().GetDeviceName();
+    std::string solver = "ConvHipIgemmGroupBwdXdlops";
     if(arch == "gfx90a")
         solver = "ConvHipIgemmGroupXdlops";
     std::vector<float> features = GetFeatures(problem, ctx.GetStream().GetMaxComputeUnits(), arch);

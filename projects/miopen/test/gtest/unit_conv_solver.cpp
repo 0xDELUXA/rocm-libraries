@@ -916,8 +916,7 @@ void UnitTestConvSolverDevApplicabilityBase::RunTestImpl(
             if(params.uses_ck_dynamic_lib && supported && !is_applicable)
             {
                 const auto& loader =
-                    miopen::solver::CKGroupedConvLibLoader::Get(
-                        std::string(dev_descr.name));
+                    miopen::solver::CKGroupedConvLibLoader::Get(std::string(dev_descr.name));
                 if(!loader.IsLoaded())
                     continue;
             }

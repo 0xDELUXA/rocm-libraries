@@ -166,7 +166,7 @@ bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::RunParameterPredictionModel
     const auto arch = ctx.GetStream().GetDeviceName();
     if(arch == "gfx90a")
         InitHeuristicKernelIDs("DeviceGroupedConvFwdMultipleABD_Xdl_CShuffle");
-    const std::string solver = "ConvHipIgemmGroupFwdXdlops";
+    const std::string solver    = "ConvHipIgemmGroupFwdXdlops";
     std::vector<float> features = GetFeatures(problem, ctx.GetStream().GetMaxComputeUnits(), arch);
     bool transform              = (arch == "gfx90a") ? false : true;
     if(ai::tuning::ModelSetParams(arch,
@@ -330,8 +330,7 @@ void PerformanceConfigHipImplicitGemmGroupFwdXdlops::HeuristicInit(
         DefaultKernelFromList(ctx);
 }
 
-bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::SetNextValue(
-    const ProblemDescription& problem)
+bool PerformanceConfigHipImplicitGemmGroupFwdXdlops::SetNextValue(const ProblemDescription& problem)
 {
     if(valid_kernels.empty())
     {
