@@ -83,10 +83,15 @@ struct amdgcn_mma<fp16_t, fp16_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarg
     }
 };
 
-// __builtin_amdgcn_wmma_f32_16x16x16_bf16_w32
-// signature: V8fV16sV16sV8f
-// flags: n/a
-// layouts: A=L{RM} V{K} B=L{RM} V{K} C/D=M{2} L{M0N} V{M1}
+/**
+ * @struct amdgcn_mma
+ * @brief Specialization of amdgcn_mma for bf16_t, bf16_t, fp32_t MMA operation on GFX11
+ * architecture.
+ * @tparam CtrlFlags Control flags for the WMMA operation
+ * @tparam CompilerTarget Current compiler target
+ */
+// TODO: c++20 template <CtrlFlagsGfx11I CtrlFlags, amdgcn_target CompilerTarget>
+// TODO: c++20 requires
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
 //               | A B C DataTypes      | MNK + WaveSize    |AParams |BPar |CPar |
@@ -101,55 +106,18 @@ struct amdgcn_mma<bf16_t, bf16_t, fp32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarg
     }
 };
 
-// TODO: check if we need packing factor
-// // __builtin_amdgcn_wmma_f16_16x16x16_f16_w32
-// // signature: V16hV16hV16hV16hIb
-// // flags: dst_bits
-// // layouts: A=L{RM} V{K} B=L{RM} V{K} C/D=M{2} L{M0N} V{M1S}
-// template <typename CtrlFlags, typename CompilerTarget>
-// // clang-format off
-// //               | A B C DataTypes      | MNK + WaveSize    |AParams |BPar |CPar |
-// struct amdgcn_mma<fp16_t, fp16_t, fp16_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget,
-// MmaOpFamily::DENSE, enable_if_target_family_gfx11_t<CompilerTarget>> : amdgcn_mma_base<fp16_t,
-// fp16_t, fp16_t, 16u, 16u, 16u, 32u, 16, 1, 2, 1, 2, 8, 8, WmmaOp, MmaOpFamily::DENSE>
-// // clang-format on
-// {
-//     CK_TILE_DEVICE static auto
-//     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec) -> CVecType
-//     {
-// // TODO: add __builtin_amdgcn_wmma_f16_16x16x16_f16_tied_w32
-//         return {__builtin_amdgcn_wmma_f16_16x16x16_f16_w32(aVec, bVec, cVec, 0)};
-//     }
-// };
-
-// TODO: check if we need packing factor
-// // __builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32
-// // signature: V16sV16sV16sV16sIb
-// // flags: dst_bits
-// // layouts: A=L{RM} V{K} B=L{RM} V{K} C/D=M{2} L{M0N} V{M1S}
-// template <typename CtrlFlags, typename CompilerTarget>
-// // clang-format off
-// //               | A B C DataTypes      | MNK + WaveSize    |AParams |BPar |CPar |
-// struct amdgcn_mma<bf16_t, bf16_t, bf16_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget,
-// MmaOpFamily::DENSE, enable_if_target_family_gfx11_t<CompilerTarget>> : amdgcn_mma_base<bf16_t,
-// bf16_t, bf16_t, 16u, 16u, 16u, 32u, 16, 1, 2, 1, 2, 8, 8, WmmaOp, MmaOpFamily::DENSE>
-// // clang-format on
-// {
-//     CK_TILE_DEVICE static auto
-//     exec(AVecType const& aVec, BVecType const& bVec, CVecType const& cVec) -> CVecType
-//     {
-// // TODO: add __builtin_amdgcn_wmma_bf16_16x16x16_bf16_tied_w32
-//         return {__builtin_amdgcn_wmma_bf16_16x16x16_bf16_w32(aVec, bVec, cVec, 0)};
-//     }
-// };
-
-// __builtin_amdgcn_wmma_i32_16x16x16_iu8_w32
-// signature: V8iIbV4iIbV4iV8iIb
-// flags: sign, sign, clamp
-// layouts: A=L{RM} V{K} B=L{RM} V{K} C/D=M{2} L{M0N} V{M1}
+/**
+ * @struct amdgcn_mma
+ * @brief Specialization of amdgcn_mma for uint8_t, uint8_t, int32_t MMA operation on GFX11
+ * architecture.
+ * @tparam CtrlFlags Control flags for the WMMA operation
+ * @tparam CompilerTarget Current compiler target
+ */
+// TODO: c++20 template <CtrlFlagsGfx11I CtrlFlags, amdgcn_target CompilerTarget>
+// TODO: c++20 requires
 template <typename CtrlFlags, typename CompilerTarget>
 // clang-format off
-//               | A B C DataTypes      | MNK + WaveSize    |AParams |BPar |CPar |
+//               | A B C DataTypes         | MNK + WaveSize    |AParams |BPar |CPar |
 struct amdgcn_mma<uint8_t, uint8_t, int32_t, 16u, 16u, 16u, CtrlFlags, CompilerTarget, MmaOpFamily::DENSE, enable_if_target_family_gfx11_t<CompilerTarget>>
 : amdgcn_mma_base<uint8_t, uint8_t, int32_t, 16u, 16u, 16u, 32u, 16, 1, 2, 1, 2, 8, 8, WmmaOp, MmaOpFamily::DENSE>
 // clang-format on
