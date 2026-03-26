@@ -86,15 +86,11 @@ namespace rocRoller
 
             TagExtent::CategoryKey TagExtent::typeKey() const
             {
-                int totalElements = 1;
+                int size = 1;
                 for(int s : sizes)
-                    totalElements *= s;
+                    size *= s;
 
-                auto const& info = DataTypeInfo::Get(dataType);
-                int         physRegCount
-                    = static_cast<int>((totalElements / info.packing) * info.registerCount);
-
-                return std::make_tuple(memoryType, physRegCount);
+                return std::make_tuple(memoryType, layoutType, dataType, size);
             }
 
             std::string TagExtent::toString() const
@@ -204,7 +200,6 @@ namespace rocRoller
                 AssertFatal(
                     typeKey() == inner.typeKey(), ShowValue(typeKey()), ShowValue(inner.typeKey()));
                 AssertFatal(dataType != DataType::None, ShowValue(dataType));
-                AssertFatal(inner.dataType != DataType::None, ShowValue(inner.dataType));
 
                 auto itFits
                     = [&](GraphExtent const& gap) { return inner.extent.isWithin(kgraph, gap); };
@@ -404,7 +399,7 @@ namespace rocRoller
                 return rv;
             }
 
-            bool TagExtent::fitsWithin(KernelGraph const& kgraph, TagExtent const& outer) const
+            bool TagExtent::fitsWithin(KernelGraph const& kgraph, TagExtent const& outer)
             {
                 for(auto const& gap : outer.gaps)
                     if(extent.isWithin(kgraph, gap))
@@ -413,12 +408,111 @@ namespace rocRoller
                 return false;
             }
 
+            std::optional<VariableType> getDataTypeFromOps(KernelGraph const&         kgraph,
+                                                           int                        coordTag,
+                                                           std::vector<Record> const& records)
+            {
+                namespace CG = ControlGraph;
+
+                for(auto const& rec : records)
+                {
+                    auto  op       = kgraph.control.getNode(rec.control);
+                    auto* assignOp = std::get_if<CG::Assign>(&op);
+
+                    //if(assignOp)
+                    //{
+                    //    if(assignOp->variableType.has_value()
+                    //       && assignOp->variableType->dataType != DataType::None
+                    //       && assignOp->variableType->dataType != DataType::Count)
+                    //    {
+                    //        return assignOp->variableType.value();
+                    //    }
+
+                    //    auto vt = Expression::resultVariableType(assignOp->expression);
+                    //    if(vt.dataType != DataType::None && vt.dataType != DataType::Count)
+                    //    {
+                    //        return vt;
+                    //    }
+                    //}
+                    //else
+                    if(not assignOp)
+                    {
+                        auto dt = CG::getDataType(op);
+                        if(dt != DataType::None && dt != DataType::Count)
+                        {
+                            return VariableType(dt);
+                        }
+                    }
+                }
+
+                return std::nullopt;
+            }
+
+            std::map<int, std::optional<VariableType>>
+                getVariableTypeForCoord(KernelGraph const&                        kgraph,
+                                        std::map<int, std::vector<Record>> const& recordsByCoord)
+            {
+                namespace CT = CoordinateGraph;
+                std::map<int, std::optional<VariableType>> result;
+
+                for(auto const& [coordTag, records] : recordsByCoord)
+                    result[coordTag] = getDataTypeFromOps(kgraph, coordTag, records);
+
+                //auto isDataFlowEdge
+                //    = [](auto const& edge) { return CT::isEdge<CT::DataFlowEdge>(edge); };
+
+                //auto searchDataFlowEdge = [&]<Graph::Direction Dir>(std::optional<VariableType>& vt,
+                //                                                    int coordTag) {
+                //    for(auto neighbor :
+                //        kgraph.coordinates.getConnectedNodeIndices<Dir>(coordTag, isDataFlowEdge))
+                //    {
+                //        auto it = result.find(neighbor);
+                //        if(it != result.end() && it->second.has_value())
+                //        {
+                //            vt = it->second.value();
+                //            return true;
+                //        }
+                //    }
+                //    return false;
+                //};
+
+                //bool changed = true;
+                //while(changed)
+                //{
+                //    changed = false;
+                //    for(auto& [coordTag, vt] : result)
+                //    {
+                //        if(vt.has_value())
+                //            continue;
+
+                //        if(kgraph.coordinates.getElementType(coordTag) != Graph::ElementType::Node)
+                //            continue;
+
+                //        changed
+                //            |= searchDataFlowEdge.template operator()<Graph::Direction::Upstream>(
+                //                vt, coordTag);
+                //        if(vt.has_value())
+                //            continue;
+
+                //        changed
+                //            |= searchDataFlowEdge.template operator()<Graph::Direction::Downstream>(
+                //                vt, coordTag);
+                //    }
+                //}
+                return result;
+            }
+
             std::map<TagExtent::CategoryKey, std::list<TagExtent>>
                 getGroupedTagExtents(KernelGraph const& kgraph)
             {
                 std::map<TagExtent::CategoryKey, std::list<TagExtent>> groupedExtents;
 
-                ControlFlowRWTracer tracer(kgraph);
+                ControlFlowRWTracer                tracer(kgraph);
+                auto                               records = tracer.coordinatesReadWrite();
+                std::map<int, std::vector<Record>> recordsByCoord;
+                for(auto const& rec : records)
+                    recordsByCoord[rec.coordinate].push_back(rec);
+                auto const coordVariableTypes = getVariableTypeForCoord(kgraph, recordsByCoord);
 
                 for(auto mt : kgraph.coordinates.getNodes<CoordinateGraph::MacroTile>())
                 {
@@ -453,10 +547,18 @@ namespace rocRoller
 
                     auto extent = getExtent(kgraph, records);
 
-                    if(!extent.empty() && extent.dataType != DataType::None
-                       && extent.layoutType != LayoutType::MATRIX_ACCUMULATOR)
+                    if(!extent.empty() && extent.layoutType != LayoutType::MATRIX_ACCUMULATOR)
                     {
-                        groupedExtents[extent.typeKey()].push_back(std::move(extent));
+                        if(extent.dataType == DataType::None
+                           && coordVariableTypes.contains(extent.baseTag))
+                        {
+                            auto const& variableType = coordVariableTypes.at(extent.baseTag);
+                            if(variableType.has_value())
+                                extent.dataType = variableType->dataType;
+                        }
+
+                        if(extent.dataType != DataType::None)
+                            groupedExtents[extent.typeKey()].push_back(std::move(extent));
                     }
                 }
                 return groupedExtents;
@@ -465,151 +567,50 @@ namespace rocRoller
             std::map<int, int> findAliasCandidatesForExtents(KernelGraph const&   kgraph,
                                                              std::list<TagExtent> extents)
             {
-                // Precompute fitCount: for each extent, how many others it fits into.
-                std::map<int, int> fitCount;
-                for(auto const& ext : extents)
+                std::map<int, int> aliases;
+
+                bool foundAny = false;
+                do
                 {
-                    int count = 0;
-                    for(auto const& other : extents)
+                    auto e   = extents.size();
+                    foundAny = false;
+                    for(auto outer = extents.begin(); outer != extents.end(); outer++)
                     {
-                        if(&ext != &other)
+                        for(auto inner = extents.begin(); inner != extents.end();)
                         {
-                            TagExtent tmp = ext;
-                            if(ext.fitsWithin(kgraph, other))
-                                count++;
-                        }
-                    }
-                    fitCount[ext.baseTag] = count;
-                }
-                auto runGreedy = [&kgraph, &fitCount](std::list<TagExtent> exts, bool bestFit) {
-                    std::map<int, int> aliases;
-                    bool               foundAny = false;
-                    do
-                    {
-                        foundAny = false;
-                        for(auto outer = exts.begin(); outer != exts.end(); outer++)
-                        {
-                            bool mergedOne = true;
-                            while(mergedOne)
+                            if(outer != inner && inner->fitsWithin(kgraph, *outer))
                             {
-                                mergedOne      = false;
-                                auto bestInner = exts.end();
-                                int  bestScore = std::numeric_limits<int>::max();
-                                int  bestTags  = std::numeric_limits<int>::max();
-                                for(auto inner = exts.begin(); inner != exts.end(); inner++)
-                                {
-                                    if(outer != inner && inner->fitsWithin(kgraph, *outer))
-                                    {
-                                        if(!bestFit)
-                                        {
-                                            // First-fit: take this one immediately.
-                                            bestInner = inner;
-                                            break;
-                                        }
-                                        int fc = fitCount.count(inner->baseTag)
-                                                     ? fitCount[inner->baseTag]
-                                                     : 0;
-                                        int tc = static_cast<int>(inner->tags.size());
-                                        if(fc < bestScore || (fc == bestScore && tc < bestTags))
-                                        {
-                                            bestScore = fc;
-                                            bestTags  = tc;
-                                            bestInner = inner;
-                                        }
-                                    }
-                                }
-                                if(bestInner != exts.end())
-                                {
-                                    mergedOne = true;
-                                    foundAny  = true;
-                                    AssertFatal(!aliases.contains(bestInner->baseTag));
-                                    aliases[bestInner->baseTag] = outer->baseTag;
-                                    bestInner->validate(kgraph);
-                                    outer->merge(kgraph, *bestInner);
-                                    outer->validate(kgraph);
-                                    exts.erase(bestInner);
-                                }
+                                foundAny = true;
+                                AssertFatal(!aliases.contains(inner->baseTag));
+                                aliases[inner->baseTag] = outer->baseTag;
+                                Log::debug("{} -> {}", inner->baseTag, outer->baseTag);
+
+                                inner->validate(kgraph);
+
+                                outer->merge(kgraph, *inner);
+
+                                outer->validate(kgraph);
+
+                                Log::debug("merged {}", outer->toString());
+                                inner = extents.erase(inner);
+                            }
+                            else
+                            {
+                                inner++;
                             }
                         }
-                    } while(foundAny);
-                    return aliases;
-                };
-                auto aliases1 = runGreedy(extents, false);
-                auto sorted   = extents;
-                sorted.sort([](TagExtent const& a, TagExtent const& b) {
-                    if(a.gaps.size() != b.gaps.size())
-                        return a.gaps.size() > b.gaps.size();
-                    return a.tags.size() < b.tags.size();
-                });
-                auto  aliases2 = runGreedy(std::move(sorted), false);
-                auto  aliases3 = runGreedy(std::move(extents), true);
-                auto* best     = &aliases1;
-                if(aliases2.size() > best->size())
-                    best = &aliases2;
-                if(aliases3.size() > best->size())
-                    best = &aliases3;
-                return std::move(*best);
-            }
+                    }
+                    Log::debug("{} aliases so far.", aliases.size());
+                } while(foundAny);
 
-            // Algo 3
-            //std::map<int, int> findAliasCandidatesForExtents(KernelGraph const&   kgraph,
-            //                                                 std::list<TagExtent> extents)
-            //{
-            //    // Core greedy algorithm: iterate (outer, inner) pairs,
-            //    // merge on first fit, repeat until stable.
-            //    // The `destinations` set prevents alias chains (A->B->C)
-            //    // which are unsupported by RegisterTagManager::addAlias.
-            //    auto runGreedy = [&kgraph](std::list<TagExtent> exts) {
-            //        std::map<int, int> aliases;
-            //        std::set<int>      destinations;
-            //        bool               foundAny = false;
-            //        do
-            //        {
-            //            foundAny = false;
-            //            for(auto outer = exts.begin(); outer != exts.end(); outer++)
-            //            {
-            //                for(auto inner = exts.begin(); inner != exts.end();)
-            //                {
-            //                    if(outer != inner && !destinations.count(inner->baseTag)
-            //                       && inner->fitsWithin(kgraph, *outer))
-            //                    {
-            //                        foundAny = true;
-            //                        AssertFatal(!aliases.contains(inner->baseTag));
-            //                        aliases[inner->baseTag] = outer->baseTag;
-            //                        destinations.insert(outer->baseTag);
-            //                        Log::debug("{} -> {}", inner->baseTag, outer->baseTag);
-            //                        inner->validate(kgraph);
-            //                        outer->merge(kgraph, *inner);
-            //                        outer->validate(kgraph);
-            //                        Log::debug("merged {}", outer->toString());
-            //                        inner = exts.erase(inner);
-            //                    }
-            //                    else
-            //                    {
-            //                        inner++;
-            //                    }
-            //                }
-            //            }
-            //            Log::debug("{} aliases so far.", aliases.size());
-            //        } while(foundAny);
-            //        return aliases;
-            //    };
-            //    // Run with the original list order.
-            //    auto aliases1 = runGreedy(extents);
-            //    // Run with a sorted order: extents with more gaps first
-            //    // (better outers), ties broken by fewer tags first
-            //    // (smaller inners packed before larger ones).
-            //    extents.sort([](TagExtent const& a, TagExtent const& b) {
-            //        if(a.gaps.size() != b.gaps.size())
-            //            return a.gaps.size() > b.gaps.size();
-            //        return a.tags.size() < b.tags.size();
-            //    });
-            //    auto aliases2 = runGreedy(std::move(extents));
-            //    Log::debug(
-            //        "Alias strategies: original={}, sorted={}.", aliases1.size(), aliases2.size());
-            //    return aliases1.size() >= aliases2.size() ? std::move(aliases1)
-            //                                              : std::move(aliases2);
-            //}
+                for(auto ext : extents)
+                {
+                    Log::debug("{}\n{}", ext.toString(), ext.orderInfo(kgraph));
+                    ext.validate(kgraph);
+                }
+
+                return aliases;
+            }
 
             std::map<int, int> findAliasCandidates(KernelGraph const& kgraph)
             {

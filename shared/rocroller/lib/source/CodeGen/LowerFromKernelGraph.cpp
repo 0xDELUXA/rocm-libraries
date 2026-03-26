@@ -697,6 +697,16 @@ namespace rocRoller
                         if(dest->name().empty())
                             dest->setName(concatenate("DataFlowTag", dimTag));
                     }
+                    else if(m_context->registerTagManager()->hasAlias(dimTag))
+                    {
+                        auto rtm       = m_context->registerTagManager();
+                        auto aliasTag  = rtm->getAlias(dimTag).value();
+                        auto targetReg = rtm->getRegister(aliasTag);
+                        dest           = rtm->getRegister(dimTag, targetReg);
+                        if(dest->name().empty())
+                            dest->setName(concatenate("DataFlowTag", dimTag));
+                        deferred = false;
+                    }
 
                     co_yield Expression::generate(dest, assign.expression, m_context);
 

@@ -63,7 +63,7 @@ namespace rocRoller
              */
             struct TagExtent
             {
-                using CategoryKey = std::tuple<MemoryType, int>;
+                using CategoryKey = std::tuple<MemoryType, LayoutType, DataType, int>;
 
                 int              baseTag = -1;
                 std::set<int>    tags;
@@ -94,7 +94,7 @@ namespace rocRoller
                 /**
                  * Returns true if `this` fits within a gap within `outer`.
                  */
-                bool fitsWithin(KernelGraph const& kgraph, TagExtent const& outer) const;
+                bool fitsWithin(KernelGraph const& kgraph, TagExtent const& outer);
             };
 
             /**
