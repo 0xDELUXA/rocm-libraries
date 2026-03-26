@@ -94,7 +94,7 @@ namespace rocRoller
                 /**
                  * Returns true if `this` fits within a gap within `outer`.
                  */
-                bool fitsWithin(KernelGraph const& kgraph, TagExtent const& outer);
+                bool fitsWithin(KernelGraph const& kgraph, TagExtent const& outer) const;
             };
 
             /**
