@@ -621,8 +621,17 @@ namespace
                 else
                     path += "/hipsparselt/library";
 
-                if(TestPath(path + "/" + processor))
-                    path += "/" + processor;
+                // Only use the per-arch subdir if a Tensile mapping file is actually
+                // present there; otherwise the directory may have been created by
+                // ExtOp/Transform installs without a corresponding Tensile library
+                // (multi-arch non-TheRock builds).
+                {
+                    auto subdir       = path + "/" + processor;
+                    auto mapping_dat  = subdir + "/TensileLibrary_lazy_" + processor + ".dat";
+                    auto mapping_yaml = subdir + "/TensileLibrary_lazy_" + processor + ".yaml";
+                    if(TestPath(mapping_dat) || TestPath(mapping_yaml))
+                        path = subdir;
+                }
             }
 
             // only load modules for the current architecture
